@@ -1,0 +1,25 @@
+{
+  "id": "{{item.id}}-controller",
+  "kind": "ReplicationController",
+  "apiVersion": "v1beta1",
+  "desiredState": {
+    "replicas": {{item.replicas}},
+    "replicaSelector": {"name": "{{item.id}}"},
+    "podTemplate": {
+      "desiredState": {
+        "manifest": {
+          "version": "v1beta1",
+          "id": "{{item.id}}",
+          "containers": {{item.containers | to_nice_json}}
+        }
+      },
+      "labels": {
+        "name": "{{item.id}}"
+      }
+    }
+  },
+  "labels": {
+    "name": "{{item.id}}"
+  }
+}
+    

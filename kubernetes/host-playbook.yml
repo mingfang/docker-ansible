@@ -1,0 +1,113 @@
+---
+- hosts: host
+  tasks:
+    - name: Install packages
+      apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
+      with_items:
+        - qemu-kvm
+        - libvirt-bin
+        - bridge-utils
+        - python-libvirt
+        - python-vm-builder
+        - apt-cacher-ng
+        - tree
+        - htop
+        - telnet
+
+    - name: Get list of vms
+      virt: command=list_vms
+      register: virt_vms
+
+    - debug: var=virt_vms.list_vms
+    - debug: var=groups.vms
+
+    - name: Create VMs 
+      command: vmbuilder kvm ubuntu
+        --hostname={{item}}
+        -d /root/kvm/{{item}}
+        --suite=trusty 
+        --flavour=virtual 
+        -o 
+        --tmpfs=- 
+        --ssh-key=/root/.ssh/authorized_keys 
+        --proxy=http://{{inventory_hostname}}:3142 
+        --libvirt=qemu:///system 
+        --mem=4096 
+        --cpus=1 
+        --bridge=br0 
+        --addpkg=openssh-server 
+        --addpkg=acpid 
+        --addpkg=linux-image-generic 
+        --addpkg=apt-transport-https
+        --debug
+      with_items: groups.vms
+      when: item not in virt_vms.list_vms
+
+    - name: Run VMs
+      virt: name={{item}} state=running
+      with_items: groups.vms
+
+- hosts: vms
+  tasks:
+    - name: Bypass apt-cacher-ng for HTTPS
+      lineinfile: dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
+
+    - name: Add Docker Repository Key
+      apt_key: keyserver=keyserver.ubuntu.com id=36A1D7869245C8950F966E92D8576A8BA88D21E9
+ 
+    - name: Add Docker Repository
+      apt_repository: repo='deb https://get.docker.io/ubuntu docker main' state=present
+
+    - name: Install packages
+      apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
+      with_items:
+        - telnet
+        - htop
+        - sysstat
+        - curl
+        - jq
+        - apparmor
+        - lxc-docker
+        - bridge-utils
+        - openvswitch-switch
+
+    - name: checkout docker-kubernetes-node
+      git: repo=https://github.com/mingfang/docker-kubernetes-node.git dest=/root/docker-kubernetes-node
+
+    - name: Setup OVS
+      shell: ./ovs-setup.sh
+      args:
+        chdir: /root/docker-kubernetes-node
+      when: "'kbr0' not in ansible_interfaces"
+
+    - name: Configure Docker to user OVS bridge
+      lineinfile: dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry minux:5000 --iptables=false"' regexp='^DOCKER_OPTS'
+      register: docker_opts
+      
+    - name: Restart Docker when DOCKER_OPTS changed
+      service: name=docker state=restarted
+      when: docker_opts.changed
+
+    - name: Ensure Docker is Running
+      service: name=docker state=started
+
+    - name: pull kubernetes-node image
+      shell: ./build
+      args:
+        chdir: /root/docker-kubernetes-node
+
+    - name: Check if node is running
+      shell: docker ps
+      register: docker_ps
+
+    - name: Start Node
+      shell: ./run minux
+      args:
+        chdir: /root/docker-kubernetes-node
+      when: docker_ps.stdout.find("kubernetes-node") == -1
+      
+    - name: Clean Exited containers
+      shell: docker rm `docker ps -aq` || true
+      
+    - name: Clean untagged images
+      shell: docker rmi `docker images | grep "^<none>" | awk '{print $3}'` || true

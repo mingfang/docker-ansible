@@ -1,0 +1,30 @@
+services:
+  - id: redis-master
+    port: 6379
+    replicas: 1
+    containers:
+      - name: redis-master
+        image: dockerfile/redis
+        imagePullPolicy: PullAlways
+        ports:
+          - containerPort: 6379
+
+  - id: nginx
+    port: 80
+    replicas: 1
+    containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: PullAlways
+        ports:
+          - containerPort: 80
+
+  - id: mysql
+    port: 3306
+    replicas: 1
+    containers:
+      - name: mysql
+        image: mysql
+        imagePullPolicy: PullAlways
+        ports:
+          - containerPort: 3306

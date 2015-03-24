@@ -1,0 +1,17 @@
+{
+  "id": "{{item.id}}",
+  "kind": "Service",
+  "apiVersion": "v1beta1",
+  {% if item.port is defined %}
+  "port": {{item.port}},
+  {% endif %}
+  {% if item.containerPort is defined %}
+  "containerPort": {{item.containerPort}},
+  {% endif %}
+  "selector": {
+    "name": "{{item.id}}"
+  },
+  "labels": {
+    "name": "{{item.id}}"
+  }
+}

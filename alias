@@ -1,0 +1,2 @@
+alias ansible='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible'
+alias ansible-playbook='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible-playbook'

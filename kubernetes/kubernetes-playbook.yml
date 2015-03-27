@@ -36,10 +36,16 @@
       register: existing_controllers
 
     - name: deploy replication controllers
-      uri: url=http://{{kubernetes_master}}/api/v1beta2/replicationControllers
-           method=POST
-           body="{{lookup('file', dest_path + '/' + item.id + '-controller.json')}}"
-           status_code=201
+      # uri: url=http://{{kubernetes_master}}/api/v1beta2/replicationControllers
+          # method=POST
+          # HEADER_Content-Type="application/json"
+          # body="{{lookup('file', dest_path + '/' + item.id + '-controller.json')}}"
+          # status_code=201
+      shell: >
+        curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
+             -d@"{{dest_path + '/' + item.id + '-controller.json'}}" \
+             http://{{kubernetes_master}}/api/v1beta2/replicationControllers \
+             | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
       when: item.id not in existing_controllers.json['items']|map(attribute='desiredState.replicaSelector.name')
 

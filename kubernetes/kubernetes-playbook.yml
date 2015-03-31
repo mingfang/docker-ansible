@@ -2,7 +2,7 @@
   hosts: 127.0.0.1
   connection: local
   vars:
-    kubernetes_master: minux:8080
+    kubernetes_master: kmaster:8080
     service_template: "service.j2"
     controller_template: "controller.j2"
     dest_path: /docker
@@ -23,10 +23,15 @@
       register: existing_services
 
     - name: deploy services
-      uri: url=http://{{kubernetes_master}}/api/v1beta2/services
-           method=POST
-           body="{{lookup('file', dest_path + '/' + item.id + '-service.json')}}"
-           status_code=201
+      # uri: url=http://{{kubernetes_master}}/api/v1beta2/services
+      #     method=POST
+      #     body="{{lookup('file', dest_path + '/' + item.id + '-service.json')}}"
+      #     status_code=201
+      shell: >
+        curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
+             -d@"{{dest_path + '/' + item.id + '-service.json'}}" \
+             http://{{kubernetes_master}}/api/v1beta2/services \
+             | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
       when: item.id not in existing_services.json['items']|map(attribute='id')
 

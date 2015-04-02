@@ -10,6 +10,9 @@
         "manifest": {
           "version": "v1beta1",
           "id": "{{item.id}}",
+          {% if item.volumes is defined %}
+          "volumes": {{item.volumes | to_nice_json}},
+          {% endif %}
           "containers": {{item.containers | to_nice_json}}
         }
       },

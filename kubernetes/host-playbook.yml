@@ -67,6 +67,7 @@
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
+        - dnsutils
         - update-notifier
         - telnet
         - htop

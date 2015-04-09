@@ -1,3 +1,8 @@
+[all:vars]
+kubernetes_master=http://minux:8080
+etcd_host=minux
+docker_registry=minux:5000
+
 [host]
 ivy
 
@@ -6,10 +11,13 @@ vm1
 vm2
 vm3
 vm4
-vm5
-vm6
-vm7
-vm8
+#vm5
+#vm6
+#vm7
+#vm8
 
 [vms:vars]
 host=ivy
+
+[master]
+minux

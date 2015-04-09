@@ -32,7 +32,8 @@
         --ssh-key=/root/.ssh/authorized_keys 
         --proxy=http://{{inventory_hostname}}:3142 
         --libvirt=qemu:///system 
-        --mem=4096 
+        --mem=4096
+        --rootsize '20480' 
         --cpus=1 
         --bridge=br0 
         --addpkg=openssh-server 
@@ -46,6 +47,11 @@
     - name: Run VMs
       virt: name={{item}} state=running
       with_items: groups.vms
+
+    - name: Undefine VMs not on list
+      virt: name={{item}} command=undefine state=destroyed
+      with_items: virt_vms.list_vms
+      when: item not in groups.vms
 
 - hosts: vms
   tasks:
@@ -61,6 +67,7 @@
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
+        - update-notifier
         - telnet
         - htop
         - sysstat
@@ -70,7 +77,7 @@
         - lxc-docker
         - bridge-utils
         - openvswitch-switch
-
+    
     - name: checkout docker-kubernetes-node
       git: repo=https://github.com/mingfang/docker-kubernetes-node.git dest=/root/docker-kubernetes-node
 
@@ -81,7 +88,7 @@
       when: "'kbr0' not in ansible_interfaces"
 
     - name: Configure Docker to user OVS bridge
-      lineinfile: dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry minux:5000 --iptables=false"' regexp='^DOCKER_OPTS'
+      lineinfile: dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true"' regexp='^DOCKER_OPTS'
       register: docker_opts
       
     - name: Restart Docker when DOCKER_OPTS changed
@@ -92,16 +99,27 @@
       service: name=docker state=started
 
     - name: pull kubernetes-node image
-      shell: ./build
-      args:
-        chdir: /root/docker-kubernetes-node
+      shell: docker pull {{docker_registry}}/kubernetes-node:latest
+      register: docker_pull
+      
+    - name: Check Node Update
+      debug: msg="Kubernetes Node Update Available"
+      when: docker_pull.stdout.find("Downloaded newer") > 0
 
     - name: Check if node is running
       shell: docker ps
       register: docker_ps
 
+    - name: Make Manifest Directory
+      file: dest=/root/docker-kubernetes-node/manifests state=directory
+
+    - name: Copy Manifests
+      copy: src={{item}} dest=/root/docker-kubernetes-node/manifests/
+      with_fileglob:
+        - kubernetes/manifests
+
     - name: Start Node
-      shell: ./run minux
+      shell: docker run --net=host -p 10250:10250 --privileged=true -e KUBERNETES_MASTER="{{kubernetes_master}}" -e ETCD_HOST={{etcd_host}} -v /sys:/sys:ro -v `pwd`/manifests:/etc/kubernetes/manifests -v /var/run/docker.sock:/run/docker.sock -v /var/run/openvswitch/db.sock:/var/run/openvswitch/db.sock -d {{docker_registry}}/kubernetes-node:latest
       args:
         chdir: /root/docker-kubernetes-node
       when: docker_ps.stdout.find("kubernetes-node") == -1

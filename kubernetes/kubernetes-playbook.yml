@@ -22,10 +22,6 @@
       register: existing_services
 
     - name: deploy services
-      # uri: url={{kubernetes_master}}/api/v1beta2/services
-      #     method=POST
-      #     body="{{lookup('file', dest_path + '/' + item.id + '-service.json')}}"
-      #     status_code=201
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
              -d@"{{dest_path + '/' + item.id + '-service.json'}}" \
@@ -40,11 +36,6 @@
       register: existing_controllers
 
     - name: deploy replication controllers
-      # uri: url={{kubernetes_master}}/api/v1beta2/replicationControllers
-          # method=POST
-          # HEADER_Content-Type="application/json"
-          # body="{{lookup('file', dest_path + '/' + item.id + '-controller.json')}}"
-          # status_code=201
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
              -d@"{{dest_path + '/' + item.id + '-controller.json'}}" \

@@ -56,7 +56,7 @@
 - hosts: vms
   tasks:
     - name: Bypass apt-cacher-ng for HTTPS
-      lineinfile: dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
+      lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
 
     - name: Add Docker Repository Key
       apt_key: keyserver=keyserver.ubuntu.com id=36A1D7869245C8950F966E92D8576A8BA88D21E9
@@ -89,7 +89,7 @@
       when: "'kbr0' not in ansible_interfaces"
 
     - name: Configure Docker to user OVS bridge
-      lineinfile: dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true"' regexp='^DOCKER_OPTS'
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true"' regexp='^DOCKER_OPTS'
       register: docker_opts
       
     - name: Restart Docker when DOCKER_OPTS changed
@@ -122,7 +122,20 @@
         - kubernetes/manifests
 
     - name: Start Node
-      shell: docker run --net=host -p 10250:10250 --privileged=true -e KUBERNETES_MASTER="{{kubernetes_master}}" -e ETCD_HOST={{etcd_host}} -v /sys:/sys:ro -v `pwd`/manifests:/etc/kubernetes/manifests -v /var/run/docker.sock:/run/docker.sock -v /var/run/openvswitch/db.sock:/var/run/openvswitch/db.sock -d {{docker_registry}}/kubernetes-node:latest
+      shell: >
+              docker run \
+                     --net=host \
+                     -p 10250:10250 \
+                     --privileged=true \
+                     -e KUBERNETES_MASTER="{{kubernetes_master}}" \
+                     -e ETCD_HOST={{etcd_host}} \
+                     -v `pwd`/manifests:/etc/kubernetes/manifests \
+                     -v /var/run/docker.sock:/run/docker.sock \
+                     -v /var/run/openvswitch/db.sock:/var/run/openvswitch/db.sock \
+                     -v /:/rootfs:ro \
+                     -v /var/run:/var/run:rw \
+                     -v /sys:/sys:ro \
+                     -d {{docker_registry}}/kubernetes-node:latest
       args:
         chdir: /root/docker-kubernetes-node
       when: docker_ps.stdout.find("kubernetes-node") == -1

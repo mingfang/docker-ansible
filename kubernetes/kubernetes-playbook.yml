@@ -9,43 +9,53 @@
     - "services.yml"
   tasks:
     - name: service template
-      template: src={{service_template}} dest={{dest_path}}/{{item.id}}-service.json 
+      template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json 
       with_items: services
       
     - name: controller template
-      template: src={{controller_template}} dest={{dest_path}}/{{item.id}}-controller.json 
+      template: src={{controller_template}} dest={{dest_path}}/{{item.name}}-controller.json 
       with_items: services
 
     - name: get existing services
-      uri: url={{kubernetes_master}}/api/v1beta2/services
+      uri: url={{kubernetes_master}}/api/v1beta3/services
            method=GET
       register: existing_services
 
-    - name: deploy services
+    - name: Create Services
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
-             -d@"{{dest_path + '/' + item.id + '-service.json'}}" \
-             {{kubernetes_master}}/api/v1beta2/services \
+             -d@"{{dest_path + '/' + item.name + '-service.json'}}" \
+             {{kubernetes_master}}/api/v1beta3/namespaces/default/services \
              | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
-      when: item.id not in existing_services.json['items']|map(attribute='id')
+      when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
 
     - name: get existing replicationControllers
-      uri: url={{kubernetes_master}}/api/v1beta2/replicationControllers
+      uri: url={{kubernetes_master}}/api/v1beta3/replicationcontrollers
            method=GET
       register: existing_controllers
+    - debug: var=existing_controllers
 
-    - name: deploy replication controllers
+    - name: Create Replication Controllers
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
-             -d@"{{dest_path + '/' + item.id + '-controller.json'}}" \
-             {{kubernetes_master}}/api/v1beta2/replicationControllers \
+             -d@"{{dest_path + '/' + item.name + '-controller.json'}}" \
+             {{kubernetes_master}}/api/v1beta3/namespaces/default/replicationcontrollers \
              | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
-      when: item.id not in existing_controllers.json['items']|map(attribute='desiredState.replicaSelector.name')
+      when: item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
+
+    - name: Update Replication Controllers
+      shell: >
+        curl -XPUT -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
+             -d@"{{dest_path + '/' + item.name + '-controller.json'}}" \
+             {{kubernetes_master}}/api/v1beta3/namespaces/default/replicationcontrollers/{{item.name}} \
+             | grep 200 || (echo "Error updating replication controller {{item.name}}." && exit 1)
+      with_items: services
+      when: item.name in existing_controllers.json['items']|map(attribute='spec.selector.name')
 
     - name: delete other replicationControllers
-      uri: url={{kubernetes_master}}/api/v1beta2/replicationControllers/{{item.id}}
+      uri: url={{kubernetes_master}}/api/v1beta3/namespaces/default/replicationcontrollers/{{item.metadata.name}}
            method=DELETE
       with_items: existing_controllers.json['items']
-      when: item.desiredState.replicaSelector.name not in services|map(attribute='id')
+      when: item.spec.selector.name not in services|map(attribute='name')

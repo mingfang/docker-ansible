@@ -1,17 +1,20 @@
 {
-  "id": "{{item.id}}",
   "kind": "Service",
-  "apiVersion": "v1beta2",
-  {% if item.port is defined %}
-  "port": {{item.port}},
-  {% endif %}
-  {% if item.containerPort is defined %}
-  "containerPort": {{item.containerPort}},
-  {% endif %}
-  "selector": {
-    "name": "{{item.id}}"
+  "apiVersion": "v1beta3",
+  "metadata":{
+     "name": "{{item.name}}",
+     "labels":{
+        "name": "{{item.name}}"
+     }
   },
-  "labels": {
-    "name": "{{item.id}}"
+  "spec":{
+     {% if item.ports is defined %}
+     "ports": 
+        {{ item.ports | to_nice_json }}
+     {% endif %}
+     ,
+     "selector": {
+       "name": "{{item.name}}"
+     }
   }
 }

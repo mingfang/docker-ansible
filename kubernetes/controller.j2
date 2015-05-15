@@ -1,28 +1,31 @@
 {
-  "id": "{{item.id}}-controller",
   "kind": "ReplicationController",
-  "apiVersion": "v1beta2",
-  "desiredState": {
-    "replicas": {{item.replicas}},
-    "replicaSelector": {"name": "{{item.id}}"},
-    "podTemplate": {
-      "desiredState": {
-        "manifest": {
-          "version": "v1beta2",
-          "id": "{{item.id}}",
-          {% if item.volumes is defined %}
-          "volumes": {{item.volumes | to_nice_json}},
-          {% endif %}
-          "containers": {{item.containers | to_nice_json}}
-        }
-      },
-      "labels": {
-        "name": "{{item.id}}"
-      }
+  "apiVersion": "v1beta3",
+  "metadata": {
+    "name": "{{item.name}}",
+    "labels": {
+      "name": "{{item.name}}"
     }
   },
-  "labels": {
-    "name": "{{item.id}}"
+  "spec": {
+    "replicas": {{item.replicas}},
+    "selector": {
+       "name": "{{item.name}}"
+    },
+    "template": {
+      "metadata": {
+        "name": "{{item.name}}",
+        "labels": {
+          "name": "{{item.name}}"
+        }
+      },
+      "spec": {
+        {% if item.volumes is defined %}
+        "volumes": {{item.volumes | to_nice_json}},
+        {% endif %}
+        "containers": {{item.containers | to_nice_json}}
+      }
+    }
   }
 }
     

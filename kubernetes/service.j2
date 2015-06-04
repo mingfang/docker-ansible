@@ -2,19 +2,19 @@
   "kind": "Service",
   "apiVersion": "v1beta3",
   "metadata":{
-     "name": "{{item.name}}",
-     "labels":{
-        "name": "{{item.name}}"
-     }
+     "name": "{{item.name}}"
   },
   "spec":{
      {% if item.ports is defined %}
      "ports": 
         {{ item.ports | to_nice_json }}
      {% endif %}
+     
+     {% if item.containers is defined %}
      ,
      "selector": {
        "name": "{{item.name}}"
      }
+     {% endif %}
   }
 }

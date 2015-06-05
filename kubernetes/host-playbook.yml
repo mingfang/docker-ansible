@@ -13,6 +13,7 @@
         - tree
         - htop
         - telnet
+        - ncdu
 
     - name: Get list of vms
       virt: command=list_vms
@@ -67,6 +68,7 @@
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
+        - ncdu
         - dnsutils
         - update-notifier
         - telnet
@@ -96,6 +98,9 @@
       service: name=docker state=restarted
       when: docker_opts.changed
 
+    - name: Remote Docker init.d
+      file: path=/etc/init.d/docker state=absent
+
     - name: Ensure Docker is Running
       service: name=docker state=started
 
@@ -119,11 +124,12 @@
     - name: Copy Manifests
       copy: src={{item}} dest=/root/docker-kubernetes-node/manifests/
       with_fileglob:
-        - kubernetes/manifests
+        - kubernetes/manifests/*
 
     - name: Start Node
       shell: >
               docker run \
+                     --pid=host \
                      --net=host \
                      -p 10250:10250 \
                      --privileged=true \
@@ -135,7 +141,6 @@
                      -v /:/rootfs:ro \
                      -v /var/lib/docker:/var/lib/docker:ro \
                      -v /var/run:/var/run:rw \
-                     -v /sys:/sys:ro \
                      -d {{docker_registry}}/kubernetes-node:latest
       args:
         chdir: /root/docker-kubernetes-node
@@ -148,7 +153,7 @@
 
     - name: Start Packetbeat Agent
       shell: docker run --net=host -d {{docker_registry}}/packetbeat-agent
-      changed_when: docker_ps.stdout.find("packetbeat-agent") == -1
+      when: docker_ps.stdout.find("packetbeat-agent") == -1
                      
     - name: Clean Exited containers
       shell: docker rm `docker ps -aq` || true

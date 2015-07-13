@@ -3,6 +3,13 @@
   "apiVersion": "v1beta3",
   "metadata":{
      "name": "{{item.name}}"
+      {% if item.annotations is defined %}
+      , "annotations":{
+        {% for key, value in item.annotations.iteritems() %}
+          "{{ key }}":"{{ value | to_json | regex_replace('\"','\\\"') }}"
+        {% endfor %}
+      }
+      {% endif %}
   },
   "spec":{
      {% if item.ports is defined %}

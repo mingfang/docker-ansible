@@ -20,10 +20,10 @@
         }
       },
       "spec": {
-        {% if item.volumes is defined %}
-        "volumes": {{item.volumes | to_nice_json}},
-        {% endif %}
         "containers": {{item.containers | to_nice_json}}
+        {% if item.volumes is defined %}
+        , "volumes": {{item.volumes | to_nice_json}}
+        {% endif %}
       }
     }
   }

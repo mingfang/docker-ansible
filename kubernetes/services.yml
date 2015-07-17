@@ -1,25 +1,86 @@
 services:
-  - name: redis-master
-    ports: 
-      - port: 6379
-    replicas: 1
-    containers:
-      - name: redis-master
-        image: redis:latest
-        imagePullPolicy: Always
-        ports:
-          - containerPort: 6379
-
-  - name: nginx
+  - name: knginx
     ports: 
       - port: 80
     replicas: 1
     containers:
-      - name: nginx
-        image: minux:5000/nginx
-        imagePullPolicy: Always
+      - name: knginx
+        image: knginx:latest
+        imagePullPolicy: Never
         ports:
           - containerPort: 80
+            hostPort: 80
+        env:
+          - name: ETCD_HOST
+            value: 192.168.1.185
+ 
+  - name: jenkins
+    ports: 
+      - port: 8080
+    replicas: 1
+    annotations:
+      nginx:
+        location: /jenkins
+    containers:
+      - name: jenkins
+        image: myjenkins:latest
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 8080
+        volumeMounts:
+          - name: jenkins
+            mountPath: /root/.jenkins
+          - name: docker
+            mountPath: /var/run/docker.sock
+    volumes:
+      - name: jenkins
+        hostPath: 
+          path: /root/docker-jenkins/jenkins
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
+
+  - name: gocd
+    ports:
+      - port: 8153
+    replicas: 1
+    annotations:
+      nginx:
+        upstream: "gocd"
+        location: "/go"
+    containers:
+      - name: gocd
+        image: goserver:latest
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 8153
+        volumeMounts:
+          - name: go
+            mountPath: /etc/go
+          - name: goserver
+            mountPath: /etc/default/go-server
+          - name: goagent
+            mountPath: /etc/default/go-agent
+          - name: db
+            mountPath: /var/lib/go-server/db
+          - name: docker
+            mountPath: /var/run/docker.sock
+    volumes:
+      - name: go
+        hostPath:
+          path: /root/docker-gocd/etc/go
+      - name: goserver
+        hostPath:
+          path: /root/docker-gocd/etc/default/go-server
+      - name: goagent
+        hostPath:
+          path: /root/docker-gocd/etc/default/go-agent
+      - name: db
+        hostPath:
+          path: /root/docker-gocd/db
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
 
   - name: google
     ports:

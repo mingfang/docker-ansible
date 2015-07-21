@@ -13,6 +13,25 @@ services:
         env:
           - name: ETCD_HOST
             value: 192.168.1.185
+
+  - name: registry
+    ports:
+      - port: 5000
+    replicas: 1
+    containers:
+      - name: registry
+        image: registry:latest
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 5000
+            hostPort: 5000
+        volumeMounts:
+          - name: registry
+            mountPath: /tmp
+    volumes:
+      - name: registry
+        hostPath: 
+          path: /root/docker-registry/data
  
   - name: jenkins
     ports: 

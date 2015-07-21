@@ -24,7 +24,7 @@
       when: item.endpoints is defined
 
     - name: get existing services
-      uri: url={{kubernetes_master}}/api/v1beta3/services
+      uri: url={{kubernetes_master}}/api/v1/services
            method=GET
       register: existing_services
 
@@ -32,13 +32,13 @@
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
              -d@"{{dest_path + '/' + item.name + '-service.json'}}" \
-             {{kubernetes_master}}/api/v1beta3/namespaces/default/services \
+             {{kubernetes_master}}/api/v1/namespaces/default/services \
              | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
       when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
 
     - name: get existing replicationControllers
-      uri: url={{kubernetes_master}}/api/v1beta3/replicationcontrollers
+      uri: url={{kubernetes_master}}/api/v1/replicationcontrollers
            method=GET
       register: existing_controllers
     - debug: var=existing_controllers
@@ -47,19 +47,19 @@
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
              -d@"{{dest_path + '/' + item.name + '-controller.json'}}" \
-             {{kubernetes_master}}/api/v1beta3/namespaces/default/replicationcontrollers \
+             {{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers \
              | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
 
     - name: delete other replicationControllers
-      uri: url={{kubernetes_master}}/api/v1beta3/namespaces/default/replicationcontrollers/{{item.metadata.name}}
+      uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}
            method=DELETE
       with_items: existing_controllers.json['items']
       when: item.spec.selector.name not in services|map(attribute='name')
 
     - name: get existing endpoints
-      uri: url={{kubernetes_master}}/api/v1beta3/endpoints
+      uri: url={{kubernetes_master}}/api/v1/endpoints
            method=GET
       register: existing_endpoints
 
@@ -67,7 +67,7 @@
       shell: >
         curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
              -d@"{{dest_path + '/' + item.name + '-endpoints.json'}}" \
-             {{kubernetes_master}}/api/v1beta3/namespaces/default/endpoints \
+             {{kubernetes_master}}/api/v1/namespaces/default/endpoints \
              | grep 201 || (echo "code is not 201" && exit 1)
       with_items: services
       when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')

@@ -24,6 +24,9 @@
         {% if item.volumes is defined %}
         , "volumes": {{item.volumes | to_nice_json}}
         {% endif %}
+        {% if item.nodeSelector is defined %}
+        , "nodeSelector": {{item.nodeSelector | to_nice_json}}
+        {% endif %}
       }
     }
   }

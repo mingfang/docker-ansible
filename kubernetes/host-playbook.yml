@@ -6,7 +6,6 @@
       with_items:
         - qemu-kvm
         - libvirt-bin
-        - bridge-utils
         - python-libvirt
         - python-vm-builder
         - apt-cacher-ng

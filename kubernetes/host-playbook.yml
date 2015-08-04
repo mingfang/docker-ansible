@@ -90,7 +90,7 @@
       when: "'kbr0' not in ansible_interfaces"
 
     - name: Configure Docker to user OVS bridge
-      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true"' regexp='^DOCKER_OPTS'
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true --storage-driver=aufs"' regexp='^DOCKER_OPTS'
       register: docker_opts
       
     - name: Restart Docker when DOCKER_OPTS changed

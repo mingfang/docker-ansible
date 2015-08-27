@@ -33,8 +33,8 @@
         --proxy=http://{{inventory_hostname}}:3142 
         --libvirt=qemu:///system 
         --mem=4096
-        --rootsize '20480' 
-        --cpus=1 
+        --rootsize '50480' 
+        --cpus=2 
         --bridge=br0 
         --addpkg=openssh-server 
         --addpkg=acpid 
@@ -48,8 +48,21 @@
       virt: name={{item}} state=running
       with_items: groups.vms
 
+    - name: Wait for VMs to run
+      local_action: wait_for 
+                    host={{item}}
+                    port=22
+                    delay=1
+                    timeout=60
+      with_items: groups.vms
+
+    - name: Destroy VMs not on list
+      virt: name={{item}} state=destroyed
+      with_items: virt_vms.list_vms
+      when: item not in groups.vms
+
     - name: Undefine VMs not on list
-      virt: name={{item}} command=undefine state=destroyed
+      virt: name={{item}} command=undefine
       with_items: virt_vms.list_vms
       when: item not in groups.vms
 
@@ -59,14 +72,15 @@
       lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
 
     - name: Add Docker Repository Key
-      apt_key: keyserver=keyserver.ubuntu.com id=36A1D7869245C8950F966E92D8576A8BA88D21E9
+      apt_key: keyserver='hkp://p80.pool.sks-keyservers.net:80' id='58118E89F3A912897C070ADBF76221572C52609D'
  
     - name: Add Docker Repository
-      apt_repository: repo='deb https://get.docker.io/ubuntu docker main' state=present
+      apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-trusty main' state=present
 
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
+        - docker-engine
         - ncdu
         - dnsutils
         - update-notifier
@@ -76,7 +90,6 @@
         - curl
         - jq
         - apparmor
-        - lxc-docker
         - bridge-utils
         - openvswitch-switch
     
@@ -145,15 +158,6 @@
         chdir: /root/docker-kubernetes-node
       when: docker_ps.stdout.find("kubernetes-node") == -1
      
-    - name: Pull Packetbeat Agent Image
-      shell: docker pull {{docker_registry}}/packetbeat-agent:latest
-      register: docker_pull
-      changed_when: docker_pull.stdout.find("Downloaded newer") > 0
-
-    - name: Start Packetbeat Agent
-      shell: docker run --net=host -d {{docker_registry}}/packetbeat-agent
-      when: docker_ps.stdout.find("packetbeat-agent") == -1
-                     
     - name: Clean Exited containers
       shell: docker rm `docker ps -aq` || true
       changed_when: False

@@ -1,62 +1,218 @@
 services:
+  - name: keycloak
+    ports:
+      - port: 8080
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+            - server: keycloak.*
+              locations:
+                - /
+    containers:
+      - name: keycloak
+        image: minux:5000/keycloak:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 8080
+      - name: packetbeat-agent
+        image: minux:5000/packetbeat-agent:latest
+        imagePullPolicy: Always
+        env:
+          - name: PACKETBEAT_HTTP_PORTS
+            value: "8080"
+
+  - name: packetbeat
+    ports:
+      - port: 5601
+        name: kibana
+      - port: 9200
+        name: elasticsearch
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+            - server: packetbeat.*
+              locations:
+                - /
+    containers:
+      - name: packetbeat
+        image: minux:5000/packetbeat:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 5601
+          - containerPort: 9200
+
+  - name: odoo
+    ports:
+      - port: 8069
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+            - server: odoo.*
+              locations:
+                - /
+    containers:
+      - name: odoo
+        image: minux:5000/odoo:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 8069
+      - name: packetbeat-agent
+        image: minux:5000/packetbeat-agent:latest
+        imagePullPolicy: Always
+        env:
+          - name: PACKETBEAT_HTTP_PORTS
+            value: "8069"
+
+  - name: openproject
+    ports:
+      - port: 3000
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+            - server: openproject.*
+              locations:
+                - /
+    containers:
+      - name: openproject
+        image: minux:5000/openproject:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 3000
+      - name: packetbeat-agent
+        image: minux:5000/packetbeat-agent:latest
+        imagePullPolicy: Always
+        env:
+          - name: PACKETBEAT_HTTP_PORTS
+            value: "3000"
+
+  - name: minecraft
+    ports:
+      - port: 25565
+    replicas: 1
+    annotations:
+      nginx:
+        - stream:
+            - listen: 25565
+    containers:
+      - name: minecraft
+        image: minux:5000/minecraft:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 25565
+
+  - name: minecraft-test
+    ports:
+      - port: 25566
+        name: minecraft
+      - port: 9001
+        name: fontail
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+          - server: minecraft-test.*
+            locations:
+              - /
+    containers:
+      - name: minecraft
+        image: minux:5000/minecraft:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 25565
+          - containerPort: 9001
+
+
   - name: nginx
     ports:
       - port: 80
-    replicas: 3
-    nodeSelector:
-      kubernetes.io/hostname: 192.168.1.173
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+          - server: test.*
+            locations:
+              - /
+              - /test
+          - server: test2.*
+            locations:
+              - /
+              - /test2
     containers:
       - name: nginx
         image: nginx:latest
         imagePullPolicy: Always
-
-  - name: knginx
-    ports: 
-      - port: 80
-    replicas: 1
-    nodeSelector:
-      kubernetes.io/hostname: 192.168.1.185
-    containers:
-      - name: knginx
-        image: knginx:latest
-        imagePullPolicy: Never
         ports:
           - containerPort: 80
             hostPort: 80
+
+  - name: knginx
+    ports:
+      - port: 80
+    replicas: 1
+    nodeSelector:
+      kubernetes.io/hostname: 192.168.1.160
+    containers:
+      - name: knginx
+        image: minux:5000/knginx:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 80
+            hostPort: 80
+          - containerPort: 25565
+            hostPort: 25565
+          - containerPort: 25566
+            hostPort: 25566
         env:
           - name: ETCD_HOST
-            value: 192.168.1.185
+            value: 192.168.1.160
+      - name: packetbeat-agent
+        image: minux:5000/packetbeat-agent:latest
+        imagePullPolicy: Always
+        env:
+          - name: PACKETBEAT_HTTP_PORTS
+            value: "80"
 
   - name: registry
     ports:
       - port: 5000
     replicas: 1
+    annotations:
+      nginx:
+        - stream:
+            - listen: 5000 
     nodeSelector:
-      kubernetes.io/hostname: 192.168.1.185
+      kubernetes.io/hostname: 192.168.1.160
     containers:
       - name: registry
-        image: registry:latest
-        imagePullPolicy: Never
+        image: registry:2
+        imagePullPolicy: Always
         ports:
           - containerPort: 5000
             hostPort: 5000
         volumeMounts:
           - name: registry
-            mountPath: /tmp
+            mountPath: /var/lib/registry
     volumes:
       - name: registry
-        hostPath: 
-          path: /root/docker-registry/data
- 
+        hostPath:
+          path: /root/docker-registry/data2
+
   - name: jenkins
-    ports: 
+    ports:
       - port: 8080
     replicas: 1
     annotations:
       nginx:
-        location: /jenkins
+        - http:
+          - server: default
+            locations:
+              - /jenkins
     nodeSelector:
-      kubernetes.io/hostname: 192.168.1.185
+      kubernetes.io/hostname: 192.168.1.160
     containers:
       - name: jenkins
         image: myjenkins:latest
@@ -70,7 +226,7 @@ services:
             mountPath: /var/run/docker.sock
     volumes:
       - name: jenkins
-        hostPath: 
+        hostPath:
           path: /root/docker-jenkins/jenkins
       - name: docker
         hostPath:
@@ -82,10 +238,12 @@ services:
     replicas: 1
     annotations:
       nginx:
-        upstream: "gocd"
-        location: "/go"
+        - http:
+          - server: default
+            locations:
+              - /go
     nodeSelector:
-      kubernetes.io/hostname: 192.168.1.185
+      kubernetes.io/hostname: 192.168.1.160
     containers:
       - name: gocd
         image: goserver:latest
@@ -126,3 +284,17 @@ services:
     endpoints:
       addresses:
         - IP: "74.125.225.7"
+
+  - name: npmlazy
+    ports:
+      - port: 9999
+    replicas: 1
+    nodeSelector:
+      kubernetes.io/hostname: 192.168.1.160
+    containers:
+      - name: npmlazy
+        image: npmlazy:latest
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 8080
+            hostPort: 9999

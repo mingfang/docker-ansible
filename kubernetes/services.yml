@@ -1,4 +1,25 @@
 services:
+  - name: prometheus
+    ports:
+      - port: 9090
+    replicas: 1
+    annotations:
+      nginx:
+        - http:
+            - server: prometheus.*
+              locations:
+                - /
+            - server: default
+              locations:
+                - /prometheus
+    containers:
+      - name: prometheus
+        image: minux:5000/prometheus:latest
+        imagePullPolicy: Always
+        env:
+          - name: ETCD_HOST
+            value: "192.168.1.160"
+
   - name: keycloak
     ports:
       - port: 8080

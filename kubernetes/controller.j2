@@ -8,7 +8,7 @@
     }
   },
   "spec": {
-    "replicas": {{item.replicas}},
+    "replicas": {{item.replicas|default(1)}},
     "selector": {
        "name": "{{item.name}}"
     },

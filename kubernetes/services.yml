@@ -1,9 +1,28 @@
 packetbeat-agent: &packetbeat-agent
-    name: packetbeat-agent
-    image: minux:5000/packetbeat-agent:latest
-    imagePullPolicy: Always
-  
+  name: packetbeat-agent
+  image: minux:5000/packetbeat-agent:latest
+  imagePullPolicy: Always
+
+etcd-host: &etcd-host
+  {name: ETCD_HOST, value: "192.168.1.160"}
+
 services:
+  - name: uptime
+    ports:
+      - port: 8082
+    annotations:
+      nginx:
+        - http:
+            - server: uptime.*
+              locations:
+                - /
+    containers:
+      - name: uptime
+        image: minux:5000/uptime:latest
+        imagePullPolicy: Always
+        env:
+          - <<: *etcd-host
+
   - name: prometheus
     ports:
       - port: 9090
@@ -21,7 +40,7 @@ services:
         image: minux:5000/prometheus:latest
         imagePullPolicy: Always
         env:
-          - {name: ETCD_HOST, value: "192.168.1.160"}
+          - <<: *etcd-host
 
   - name: keycloak
     ports:
@@ -121,7 +140,7 @@ services:
           - {containerPort: 25565, hostPort: 25565}
           - {containerPort: 25566, hostPort: 25566}
         env:
-          - {name: ETCD_HOST, value: 192.168.1.160}
+          - <<: *etcd-host
       - <<: *packetbeat-agent
         env:
           - {name: PACKETBEAT_HTTP_PORTS, value: "80"}

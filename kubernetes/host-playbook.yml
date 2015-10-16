@@ -24,7 +24,7 @@
     - name: Create VMs 
       command: vmbuilder kvm ubuntu
         --hostname={{item}}
-        -d /root/kvm/{{item}}
+        -d /media/ssd500/kvm/{{item}}
         --suite=trusty 
         --flavour=virtual 
         -o 
@@ -44,6 +44,16 @@
       with_items: groups.vms
       when: item not in virt_vms.list_vms
 
+    - name: Destroy VMs not on list
+      virt: name={{item}} state=destroyed
+      with_items: virt_vms.list_vms
+      when: item not in groups.vms
+
+    - name: Undefine VMs not on list
+      virt: name={{item}} command=undefine
+      with_items: virt_vms.list_vms
+      when: item not in groups.vms
+
     - name: Run VMs
       virt: name={{item}} state=running
       with_items: groups.vms
@@ -55,16 +65,7 @@
                     delay=1
                     timeout=60
       with_items: groups.vms
-
-    - name: Destroy VMs not on list
-      virt: name={{item}} state=destroyed
-      with_items: virt_vms.list_vms
-      when: item not in groups.vms
-
-    - name: Undefine VMs not on list
-      virt: name={{item}} command=undefine
-      with_items: virt_vms.list_vms
-      when: item not in groups.vms
+      ignore_errors: yes
 
 - hosts: vms
   tasks:
@@ -116,6 +117,14 @@
     - name: Ensure Docker is Running
       service: name=docker state=started
 
+    - name: Clean Exited containers
+      shell: docker rm `docker ps -aq` || true
+      changed_when: False
+      
+    - name: Clean untagged images
+      shell: docker rmi `docker images | grep "^<none>" | awk '{print $3}'` || true
+      changed_when: False
+
     - name: pull kubernetes-node image
       shell: docker pull {{docker_registry}}/kubernetes-node:latest
       register: docker_pull
@@ -151,17 +160,10 @@
                      -v /var/run/docker.sock:/run/docker.sock \
                      -v /var/run/openvswitch/db.sock:/var/run/openvswitch/db.sock \
                      -v /:/rootfs:ro \
-                     -v /var/lib/docker:/var/lib/docker:ro \
+                     -v /var/lib/docker:/var/lib/docker:rw \
                      -v /var/run:/var/run:rw \
                      -d {{docker_registry}}/kubernetes-node:latest
       args:
         chdir: /root/docker-kubernetes-node
       when: docker_ps.stdout.find("kubernetes-node") == -1
      
-    - name: Clean Exited containers
-      shell: docker rm `docker ps -aq` || true
-      changed_when: False
-      
-    - name: Clean untagged images
-      shell: docker rmi `docker images | grep "^<none>" | awk '{print $3}'` || true
-      changed_when: False

@@ -3,13 +3,205 @@ packetbeat-agent: &packetbeat-agent
   image: minux:5000/packetbeat-agent:latest
   imagePullPolicy: Always
 
+fluentd: &fluentd
+  name: fluentd-kafka
+  image: minux:5000/fluentd-kafka:latest
+  imagePullPolic: Always
+  volumeMounts:
+    - {name: log, mountPath: /var/log}
+
+log-volume: &log-volume
+  volumes:
+    - {name: log, emptyDir: {}}
+log-mount: &log-mount
+  volumeMounts:
+    - {name: log, mountPath: /var/log}
+
 etcd-host: &etcd-host
   {name: ETCD_HOST, value: "192.168.1.160"}
 
+zookeeper-host: &zookeeper-host
+  {name: ZOOKEEPER, value: "zookeeper:2181"}
+
 services:
+  - name: rtail
+    ports:
+      - port: 8888
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: rtail.*
+              locations:
+                - /
+    containers:
+      - name: rtail
+        image: minux:5000/rtail:latest
+        imagePullPolicy: Always
+
+  - name: kafka-manager
+    ports:
+      - port: 9000
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: kafka-manager.*
+              locations:
+                - /
+    containers:
+      - name: kafka-manager
+        image: minux:5000/kafka-manager:latest
+        imagePullPolicy: Always
+        env:
+          - {name: ZK_HOSTS, value: "zookeeper:2181"}
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: KAFKA-MANAGER}
+    <<: *log-volume
+
+  - name: mongodb
+    ports:
+      - port: 27017
+    nodeSelector:
+      zone: green
+    containers:
+      - name: mongodb
+        image: minux:5000/mongodb:latest
+        imagePullPolicy: Always
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: MONGODB}
+    <<: *log-volume
+
+  - name: gitlab
+    ports:
+      - {port: 80, name: http}
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: gitlab.*
+              locations:
+                - /
+    containers:
+      - name: gitlab
+        image: gitlab/gitlab-ce:latest
+        imagePullPolicy: Always
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: GITLAB}
+    <<: *log-volume
+
+  - name: kafka
+    ports:
+      - {port: 9092, name: kafka}
+      - {port: 9999, name: jmx}
+    nodeSelector:
+      zone: green
+    containers:
+      - name: kafka
+        image: minux:5000/kafka:latest
+        imagePullPolicy: Always
+        env:
+          - {name: ADVERTISED_HOST, value: "kafka"}
+          - {name: ZOOKEEPER_HOST,  value: "zookeeper"}
+          - {name: JMX_PORT,        value: "9999"}
+          - {name: LOG_RETENTION_HOURS, value: "1"}
+          - {name: LOG_RETENTION_BYTES, value: "1048576"}
+
+  - name: redis
+    ports:
+      - port: 6379
+    nodeSelector:
+      zone: green
+    containers:
+      - name: redis
+        image: minux:5000/redis:latest
+        imagePullPolicy: Always
+
+  - name: zookeeper
+    ports:
+      - port: 2181
+    nodeSelector:
+      zone: green
+    containers:
+      - name: zookeeper
+        image: minux:5000/zookeeper:latest
+        imagePullPolicy: Always
+
+  - name: elasticsearch
+    ports:
+      - port: 9200
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: elasticsearch.*
+              locations:
+                - /
+    containers:
+      - name: elasticsearch
+        image: minux:5000/elasticsearch:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9200
+          initialDelaySeconds: 30
+        env:
+          - {name: CLUSTER_NAME, value: LOGS}
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: ES}
+    <<: *log-volume
+
+  - name: kibana
+    ports:
+      - port: 5601
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: kibana.*
+              locations:
+                - /
+    containers:
+      - name: kibana
+        image: minux:5000/kibana:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5601
+          initialDelaySeconds: 30
+        env:
+          - {name: ELASTICSEARCH_HOST, value: elasticsearch} 
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: KIBANA}
+    <<: *log-volume
+
   - name: uptime
     ports:
       - port: 8082
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -22,10 +214,18 @@ services:
         imagePullPolicy: Always
         env:
           - <<: *etcd-host
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: UPTIME}
+    <<: *log-volume
 
   - name: prometheus
     ports:
       - port: 9090
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -41,10 +241,18 @@ services:
         imagePullPolicy: Always
         env:
           - <<: *etcd-host
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: PROMETHEUS}
+    <<: *log-volume
 
   - name: keycloak
     ports:
       - port: 8080
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -55,14 +263,19 @@ services:
       - name: keycloak
         image: minux:5000/keycloak:latest
         imagePullPolicy: Always
-      - <<: *packetbeat-agent
+        <<: *log-mount
+      - <<: *fluentd
         env:
-          - {name: PACKETBEAT_HTTP_PORTS, value: "8080"}
+          - <<: *zookeeper-host
+          - {name: LABEL, value: KEYCLOAK}
+    <<: *log-volume
 
   - name: packetbeat
     ports:
       - {port: 5601, name: kibana}
       - {port: 9200, name: elasticsearch}
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -73,10 +286,23 @@ services:
       - name: packetbeat
         image: minux:5000/packetbeat:latest
         imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9200
+          initialDelaySeconds: 30
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: PACKETBEAT}
+    <<: *log-volume
 
   - name: odoo
     ports:
       - port: 8069
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -87,31 +313,39 @@ services:
       - name: odoo
         image: minux:5000/odoo:latest
         imagePullPolicy: Always
-      - <<: *packetbeat-agent
+        <<: *log-mount
+      - <<: *fluentd
         env:
-          - {name: PACKETBEAT_HTTP_PORTS, value: "8069"}
+          - <<: *zookeeper-host
+          - {name: LABEL, value: ODOO}
+    <<: *log-volume
 
-  - name: openproject
-    ports:
-      - port: 3000
-    annotations:
-      nginx:
-        - http:
-            - server: openproject.*
-              locations:
-                - /
-    containers:
-      - name: openproject
-        image: minux:5000/openproject:latest
-        imagePullPolicy: Always
-      - <<: *packetbeat-agent
-        env:
-          - {name: PACKETBEAT_HTTP_PORTS,value: "3000"}
+#  - name: openproject
+#    ports:
+#      - port: 3000
+#    annotations:
+#      nginx:
+#        - http:
+#            - server: openproject.*
+#              locations:
+#                - /
+#    containers:
+#      - name: openproject
+#        image: minux:5000/openproject:latest
+#        imagePullPolicy: Always
+#        <<: *log-mount
+#      - <<: *fluentd
+#        env:
+#          - <<: *zookeeper-host
+#          - {name: LABEL, value: OPENPROJECT}
+#    <<: *log-volume
 
   - name: minecraft
     ports:
       - {port: 25565, name: minecraft}
       - {port: 9001,  name: fontail}
+    nodeSelector:
+      zone: green
     annotations:
       nginx:
         - http:
@@ -125,12 +359,20 @@ services:
       - name: minecraft
         image: minux:5000/minecraft:latest
         imagePullPolicy: Always
+        <<: *log-mount
+      - <<: *fluentd
+        env:
+          - <<: *zookeeper-host
+          - {name: LABEL, value: MINDCRAFT}
+    <<: *log-volume
 
   - name: knginx
     ports:
       - port: 80
     nodeSelector:
-      kubernetes.io/hostname: 192.168.1.160
+      zone: orange
+    volumes:
+      - {name: log, emptyDir: {}}
     containers:
       - name: knginx
         image: minux:5000/knginx:latest
@@ -141,6 +383,12 @@ services:
           - {containerPort: 25566, hostPort: 25566}
         env:
           - <<: *etcd-host
+        volumeMounts:
+          - {name: log, mountPath: /var/log}
+      - <<: *fluentd
+        env:
+          - {name: ZOOKEEPER, value: "zookeeper:2181"}
+          - {name: LABEL, value: "KNGINX"} 
       - <<: *packetbeat-agent
         env:
           - {name: PACKETBEAT_HTTP_PORTS, value: "80"}

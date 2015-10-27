@@ -150,6 +150,7 @@
     - name: Start Node
       shell: >
               docker run \
+                     -e LABELS="zone=green" \
                      --pid=host \
                      --net=host \
                      -p 10250:10250 \

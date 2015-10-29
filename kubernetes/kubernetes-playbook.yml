@@ -40,7 +40,7 @@
     #- debug: var=existing_controllers
 
     - name: Create Replication Controllers
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}}
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}} --validate=true
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
 
@@ -56,6 +56,6 @@
       register: existing_endpoints
 
     - name: Create Endpoints
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}}
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}} --validate=true
       with_items: services
       when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')

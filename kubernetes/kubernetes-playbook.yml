@@ -29,11 +29,7 @@
       register: existing_services
 
     - name: Create Services
-      shell: >
-        curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
-             -d@"{{dest_path + '/' + item.name + '-service.json'}}" \
-             {{kubernetes_master}}/api/v1/namespaces/default/services \
-             | grep 201 || (echo "code is not 201" && exit 1)
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}}
       with_items: services
       when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
 
@@ -41,14 +37,10 @@
       uri: url={{kubernetes_master}}/api/v1/replicationcontrollers
            method=GET
       register: existing_controllers
-    - debug: var=existing_controllers
+    #- debug: var=existing_controllers
 
     - name: Create Replication Controllers
-      shell: >
-        curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
-             -d@"{{dest_path + '/' + item.name + '-controller.json'}}" \
-             {{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers \
-             | grep 201 || (echo "code is not 201" && exit 1)
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}}
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
 
@@ -64,10 +56,6 @@
       register: existing_endpoints
 
     - name: Create Endpoints
-      shell: >
-        curl -XPOST -H "Content-Type: application/json" -s -S -w "%{http_code}" -o /dev/null \
-             -d@"{{dest_path + '/' + item.name + '-endpoints.json'}}" \
-             {{kubernetes_master}}/api/v1/namespaces/default/endpoints \
-             | grep 201 || (echo "code is not 201" && exit 1)
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}}
       with_items: services
       when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')

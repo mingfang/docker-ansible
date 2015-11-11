@@ -5,6 +5,7 @@
     service_template: "service.j2"
     controller_template: "controller.j2"
     endpoints_template: "endpoints.j2"
+    secret_template: "secret.j2"
     dest_path: /docker
   vars_files:
     - "services.yml"
@@ -12,50 +13,77 @@
     - name: service template
       template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json 
       with_items: services
+      no_log: True
       
     - name: controller template
       template: src={{controller_template}} dest={{dest_path}}/{{item.name}}-controller.json 
       with_items: services
       when: item.containers is defined
+      no_log: True
 
     - name: endpoints template
       template: src={{endpoints_template}} dest={{dest_path}}/{{item.name}}-endpoints.json 
       with_items: services
       when: item.endpoints is defined
+      no_log: True
+
+    - name: secret template
+      template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json 
+      with_items: secrets
+
+    - name: get existing secrets
+      uri: url={{kubernetes_master}}/api/v1/secrets
+           method=GET
+      register: existing_secrets
+      no_log: True
+
+    - name: Create Secrets
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-secret.json'}}
+      with_items: secrets
+      when: item.name not in existing_secrets.json['items']|map(attribute='metadata.name')
+      no_log: True
 
     - name: get existing services
       uri: url={{kubernetes_master}}/api/v1/services
            method=GET
       register: existing_services
+      no_log: True
 
     - name: Create Services
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}}
       with_items: services
       when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
+      no_log: True
 
     - name: get existing replicationControllers
       uri: url={{kubernetes_master}}/api/v1/replicationcontrollers
            method=GET
       register: existing_controllers
+      no_log: True
     #- debug: var=existing_controllers
 
     - name: Create Replication Controllers
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}} --validate=true
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
+      no_log: True
 
     - name: delete other replicationControllers
       uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}
            method=DELETE
       with_items: existing_controllers.json['items']
       when: item.spec.selector.name not in services|map(attribute='name')
+      no_log: True
 
     - name: get existing endpoints
       uri: url={{kubernetes_master}}/api/v1/endpoints
            method=GET
       register: existing_endpoints
+      no_log: True
 
     - name: Create Endpoints
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}} --validate=true
       with_items: services
       when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')
+      no_log: True
+

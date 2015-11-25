@@ -1,6 +1,9 @@
 ---
 - hosts: host
   tasks:
+    - name: Upgrade Kernel
+      apt: name=linux-generic-lts-vivid state=latest update_cache=true cache_valid_time=3600
+
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
@@ -21,10 +24,13 @@
     - debug: var=virt_vms.list_vms
     - debug: var=groups.vms
 
+    - name: Create KVM directory
+      file: path=/kvm state=directory
+
     - name: Create VMs 
       command: vmbuilder kvm ubuntu
         --hostname={{item}}
-        -d /media/ssd500/kvm/{{item}}
+        -d /kvm/{{item}}
         --suite=trusty 
         --flavour=virtual 
         -o 
@@ -78,6 +84,9 @@
     - name: Add Docker Repository
       apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-trusty main' state=present
 
+    - name: Upgrade Kernel
+      apt: name=linux-generic-lts-vivid state=latest update_cache=true cache_valid_time=3600
+
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
@@ -104,7 +113,7 @@
       when: "'kbr0' not in ansible_interfaces"
 
     - name: Configure Docker to user OVS bridge
-      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true --storage-driver=aufs"' regexp='^DOCKER_OPTS'
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
       register: docker_opts
       
     - name: Restart Docker when DOCKER_OPTS changed

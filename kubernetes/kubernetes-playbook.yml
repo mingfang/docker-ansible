@@ -30,6 +30,7 @@
     - name: secret template
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json 
       with_items: secrets
+      when: secrets is defined
 
     - name: get existing secrets
       uri: url={{kubernetes_master}}/api/v1/secrets
@@ -40,7 +41,7 @@
     - name: Create Secrets
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-secret.json'}}
       with_items: secrets
-      when: item.name not in existing_secrets.json['items']|map(attribute='metadata.name')
+      when: secrets is defined and item.name not in existing_secrets.json['items']|map(attribute='metadata.name')
       no_log: True
 
     - name: get existing services
@@ -50,7 +51,7 @@
       no_log: True
 
     - name: Create Services
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}}
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}} --validate=false
       with_items: services
       when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
       no_log: True
@@ -66,7 +67,7 @@
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}} --validate=true
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
-      no_log: True
+      #no_log: True
 
     - name: delete other replicationControllers
       uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}

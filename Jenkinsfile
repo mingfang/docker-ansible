@@ -3,7 +3,7 @@ node {
    checkout scm
 
    stage 'Build'
-   sh "./build" 
+   sh "./build --cache" 
 
    stage 'Push'
    sh "bash -x ./push"   

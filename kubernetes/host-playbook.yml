@@ -73,7 +73,7 @@
       with_items: groups.vms
       ignore_errors: yes
 
-- hosts: vms
+- hosts: vms:nucs
   tasks:
     - name: Bypass apt-cacher-ng for HTTPS
       lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
@@ -113,7 +113,7 @@
       when: "'kbr0' not in ansible_interfaces"
 
     - name: Configure Docker to user OVS bridge
-      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry {{docker_registry}} --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry=0.0.0.0/0  --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
       register: docker_opts
       
     - name: Restart Docker when DOCKER_OPTS changed
@@ -133,15 +133,6 @@
     - name: Clean untagged images
       shell: docker rmi `docker images | grep "^<none>" | awk '{print $3}'` || true
       changed_when: False
-
-    - name: pull kubernetes-node image
-      shell: docker pull {{docker_registry}}/kubernetes-node:latest
-      register: docker_pull
-      changed_when: docker_pull.stdout.find("Downloaded newer") > 0
-
-    - name: Check Node Update
-      debug: msg="Kubernetes Node Update Available"
-      when: docker_pull.stdout.find("Downloaded newer") > 0
 
     - name: Check if node is running
       shell: docker ps

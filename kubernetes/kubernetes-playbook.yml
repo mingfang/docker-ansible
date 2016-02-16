@@ -6,29 +6,30 @@
     controller_template: "controller.j2"
     endpoints_template: "endpoints.j2"
     secret_template: "secret.j2"
+    daemonset_template: "daemonset.j2"
     dest_path: /docker
   vars_files:
     - "services.yml"
   tasks:
     - name: service template
-      template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json 
+      template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json
       with_items: services
       no_log: True
-      
+
     - name: controller template
-      template: src={{controller_template}} dest={{dest_path}}/{{item.name}}-controller.json 
+      template: src={{controller_template}} dest={{dest_path}}/{{item.name}}-controller.json
       with_items: services
       when: item.containers is defined
       no_log: True
 
     - name: endpoints template
-      template: src={{endpoints_template}} dest={{dest_path}}/{{item.name}}-endpoints.json 
+      template: src={{endpoints_template}} dest={{dest_path}}/{{item.name}}-endpoints.json
       with_items: services
       when: item.endpoints is defined
       no_log: True
 
     - name: secret template
-      template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json 
+      template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
       with_items: secrets
       when: secrets is defined
 
@@ -44,6 +45,23 @@
       when: secrets is defined and item.name not in existing_secrets.json['items']|map(attribute='metadata.name')
       no_log: True
 
+    - name: daemonset template
+      template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
+      with_items: daemonsets
+      when: daemonsets is defined
+
+    - name: get existing daemonsets
+      uri: url={{kubernetes_master}}/apis/extensions/v1beta1/namespaces/default/daemonsets
+           method=GET
+      register: existing_daemonsets
+      no_log: True
+
+    - name: create daemonsets
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-daemonset.json'}}
+      with_items: daemonsets
+      when: daemonsets is defined and item.name not in existing_daemonsets.json['items']|map(attribute='metadata.name')
+      no_log: True
+
     - name: get existing services
       uri: url={{kubernetes_master}}/api/v1/services
            method=GET
@@ -54,7 +72,7 @@
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}} --validate=false
       with_items: services
       when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
-      no_log: True
+      no_log: False
 
     - name: get existing replicationControllers
       uri: url={{kubernetes_master}}/api/v1/replicationcontrollers
@@ -64,7 +82,7 @@
     #- debug: var=existing_controllers
 
     - name: Create Replication Controllers
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}} --validate=true
+      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}} --validate=false
       with_items: services
       when: item.containers is defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
       #no_log: True
@@ -86,5 +104,5 @@
       command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}} --validate=true
       with_items: services
       when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')
-      no_log: True
+      no_log: False
 

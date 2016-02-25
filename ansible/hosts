@@ -1,6 +1,6 @@
 [all:vars]
 kubernetes_master=http://minux:8080
-etcd_host=minux
+ETCD_HOST=minux
 docker_registry=minux:5000
 
 [host]

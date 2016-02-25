@@ -17,6 +17,7 @@ RUN apt-get install -y vim less net-tools inetutils-ping wget curl git telnet nm
 
 #Ansible
 RUN apt-get install -y python-dev python-pip
+RUN pip install httplib2
 RUN pip install ansible==1.9.4
 
 #Kubectl

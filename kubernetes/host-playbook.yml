@@ -146,6 +146,7 @@
       shell: docker pull {{docker_registry}}/kubernetes-node:latest
       register: docker_pull
       changed_when: docker_pull.stdout.find("Downloaded newer") > 0
+      ignore_errors: True 
 
     - name: Check Node Update
       debug: msg="Kubernetes Node Update Available"
@@ -177,7 +178,7 @@
                      -e ETCD_HOST={{etcd_host}} \
                      -v `pwd`/manifests:/etc/kubernetes/manifests \
                      -v /:/rootfs:ro \
-                     -v /sys:/sys:ro \
+                     -v /sys:/sys:rw \
                      -v /dev:/dev \
                      -v /var/lib/docker/:/var/lib/docker:rw \
                      -v /var/lib/kubelet/:/var/lib/kubelet:rw \

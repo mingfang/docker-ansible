@@ -54,6 +54,7 @@
       uri: url={{kubernetes_master}}/apis/extensions/v1beta1/namespaces/default/daemonsets
            method=GET
       register: existing_daemonsets
+      when: daemonsets is defined
       no_log: True
 
     - name: create daemonsets

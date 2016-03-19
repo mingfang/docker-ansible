@@ -22,5 +22,5 @@ RUN pip install ansible==1.9.4
 
 #Kubectl
 RUN cd /usr/bin && \
-    wget https://storage.googleapis.com/kubernetes-release/release/v1.1.7/bin/linux/amd64/kubectl && \
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.2.0/bin/linux/amd64/kubectl && \
     chmod +x kubectl

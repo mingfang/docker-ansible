@@ -19,11 +19,16 @@
       },
       "spec": {
         {# Global ConfigMap as env variables #}
-        {% set env = [{"name": "SERVICE_NAME", "value": item.name}] %}
+        {% set env = [{"name": "SERVICE_NAME", "value": item.name}, {"name": "LABEL", "value": item.name|upper}] %}
         {% set global = configmaps|default()|selectattr("name", "equalto", "global")|first|default({"data": []}) %}
         {% for key in global.data %}
           {% set _dummy = env.extend([{"name": key|replace("-", "_")|upper, "value": global.data[key]}]) %}
         {% endfor %}
+
+        {# Sidecar Containers #}
+        {% if sidecars %}
+          {% set _dummy = item.containers.extend(sidecars) %}
+        {% endif %}
         "containers": [
           {% for container in item.containers %}
           {% if container.env is defined %}

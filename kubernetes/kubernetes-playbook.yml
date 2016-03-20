@@ -8,10 +8,25 @@
     secret_template: "secret.j2"
     daemonset_template: "daemonset.j2"
     deployment_template: "deployment.j2"
+    configmap_template: "configmap.j2"
     dest_path: /docker
   vars_files:
     - "services.yml"
   tasks:
+
+    # ConfigMap
+
+    - name: configmap template
+      template: src={{configmap_template}} dest={{dest_path}}/{{item.name}}-configmap.json
+      with_items: configmaps
+      when: configmaps is defined
+      no_log: True
+
+    - name: apply configmaps
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}} --record=true
+      with_items: configmaps
+      when: configmaps is defined
+      no_log: True
 
     # Secrets
 
@@ -19,17 +34,12 @@
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
       with_items: secrets
       when: secrets is defined
-
-    - name: get existing secrets
-      uri: url={{kubernetes_master}}/api/v1/secrets
-           method=GET
-      register: existing_secrets
       no_log: True
 
-    - name: Create Secrets
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-secret.json'}}
+    - name: apply secrets
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}} --record=true
       with_items: secrets
-      when: secrets is defined and item.name not in existing_secrets.json['items']|map(attribute='metadata.name')
+      when: secrets is defined
       no_log: True
 
     # DaemonSets
@@ -38,18 +48,12 @@
       template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
       with_items: daemonsets
       when: daemonsets is defined
-
-    - name: get existing daemonsets
-      uri: url={{kubernetes_master}}/apis/extensions/v1beta1/namespaces/default/daemonsets
-           method=GET
-      register: existing_daemonsets
-      when: daemonsets is defined
       no_log: True
 
-    - name: create daemonsets
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-daemonset.json'}}
+    - name: apply daemonsets
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}} --record=true
       with_items: daemonsets
-      when: daemonsets is defined and item.name not in existing_daemonsets.json['items']|map(attribute='metadata.name')
+      when: daemonsets is defined
       no_log: True
 
     # Services
@@ -59,17 +63,10 @@
       with_items: services
       no_log: True
 
-    - name: get existing services
-      uri: url={{kubernetes_master}}/api/v1/services
-           method=GET
-      register: existing_services
-      no_log: True
-
-    - name: Create Services
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-service.json'}}
+    - name: apply services
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}} --record=true
       with_items: services
-      when: item.name not in existing_services.json['items']|map(attribute='metadata.name')
-      no_log: False
+      no_log: True
 
     # Replication Controllers
 
@@ -79,23 +76,15 @@
       when: item.containers is defined and item.strategy is not defined
       no_log: True
 
-    - name: get existing replicationControllers
-      uri: url={{kubernetes_master}}/api/v1/replicationcontrollers
-          method=GET
-      register: existing_controllers
-      no_log: True
-    #- debug: var=existing_controllers
-
-    - name: Create Replication Controllers
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-controller.json'}}
+    - name: apply controllers
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-controller.json'}} --record=true
       with_items: services
-      when: item.containers is defined and item.strategy is not defined and item.name not in existing_controllers.json['items']|map(attribute='spec.selector.name')
-      #no_log: True
+      when: item.containers is defined and item.strategy is not defined
+      no_log: True
 
     # - name: delete other replicationControllers
     #   uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}
-    #       method=DELETE
-    #   with_items: existing_controllers.json['items']
+    #   with_items: existing_c ontrollers.json['items']
     #   when: item.spec.selector.name not in services|map(attribute='name')
     #   no_log: True
 
@@ -107,22 +96,10 @@
       when: item.containers is defined and item.strategy is defined
       no_log: True
 
-    - name: get existing deployments
-      uri: url={{kubernetes_master}}/apis/extensions/v1beta1/namespaces/default/deployments
-           method=GET
-      register: existing_deployments
-      no_log: True
-
-    - name: create deployments
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-deployment.json'}} --record
-      with_items: services
-      when: item.containers is defined and item.strategy is defined and item.name not in existing_deployments.json['items']|map(attribute='metadata.name')
-      no_log: False
-
     - name: apply deployments
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}}
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}} --record=true
       with_items: services
-      when: item.containers is defined and item.strategy is defined and item.name in existing_deployments.json['items']|map(attribute='metadata.name')
+      when: item.containers is defined and item.strategy is defined
       no_log: False
 
     # Endpoints
@@ -133,15 +110,8 @@
       when: item.endpoints is defined
       no_log: True
 
-    - name: get existing endpoints
-      uri: url={{kubernetes_master}}/api/v1/endpoints
-           method=GET
-      register: existing_endpoints
-      no_log: True
-
-    - name: Create Endpoints
-      command: kubectl --server="{{kubernetes_master}}" create -f {{dest_path + '/' + item.name + '-endpoints.json'}}
+    - name: apply endpoints
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-endpoints.json'}} --record=true
       with_items: services
-      when: item.endpoints is defined and item.name not in existing_endpoints.json['items']|map(attribute='metadata.name')
-      no_log: False
-
+      when: item.endpoints is defined
+      no_log: True

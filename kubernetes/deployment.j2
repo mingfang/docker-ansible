@@ -18,7 +18,22 @@
         }
       },
       "spec": {
-        "containers": {{item.containers | to_nice_json}}
+        {# Every container will get SERVICE_NAME and "global" ConfigMap as env variables #}
+        {% set env = [{"name": "SERVICE_NAME", "value": item.name}] %}
+        {% set global = configmaps|default()|selectattr("name", "equalto", "global")|first|default({"data": []}) %}
+        {% for key in global.data %}
+          {% set _dummy = env.extend([{"name": key|replace("-", "_")|upper, "value": global.data[key]}]) %}
+        {% endfor %}
+        "containers": [
+          {% for container in item.containers %}
+          {% if "env" in container %}
+            {% set _dummy = container.update({"env":container.env|union(env)}) %}
+          {% else %}
+            {% set _dummy = container.update({"env": env}) %}
+          {% endif %}
+          {{container | to_nice_json}}{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
         {% if item.volumes is defined %}
         , "volumes": {{item.volumes | to_nice_json}}
         {% endif %}

@@ -32,10 +32,20 @@
         "containers": [
           {% for container in item.containers %}
           {% if container.env is defined %}
-            {% set _dummy = container.update({"env":container.env|union(env)}) %}
+            {% set _dummy = container.update({"env": container.env|union(env)}) %}
           {% else %}
             {% set _dummy = container.update({"env": env}) %}
           {% endif %}
+          
+          {# Global volume mounts #}
+          {% if volumeMounts is defined %}
+          {% if container.volumeMounts is defined %}
+            {% set _dummy = container.update({"volumeMounts": container.volumeMounts|union(volumeMounts)}) %}
+          {% else %}
+            {% set _dummy = container.update({"volumeMounts": volumeMounts}) %}
+          {% endif %}
+          {% endif %}
+
           {{container | to_nice_json}}{% if not loop.last %},{% endif %}
           {% endfor %}
         ]

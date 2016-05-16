@@ -15,13 +15,16 @@ secrets:
 configmaps:
   - name: global
     data:
-      node-env: prod
-      spring-profiles-active: prod
-      etcd-host: 192.168.1.160
+      node-env: production
+      etcd-host: "{{ ETCD_HOST }}"
       zookeeper: zookeeper:2181
+      tz: EST
 
 volumes:
   - {name: log, emptyDir: {}}
+
+volumeMounts:
+  - {name: log, mountPath: /var/log}
 
 sidecars:
   - name: fluentd-kafka
@@ -50,6 +53,20 @@ daemonsets:
         imagePullPolicy: Always
         env:
           - {name: ZABBIX_SERVER, value: zabbix}
+          - {name: TZ, value: EST}
+
+  - name: docker-gc
+    containers:
+      - name: gc
+        image: tristar:5000/gc:latest
+        env:
+          - {name: TZ, value: EST}
+        volumeMounts:
+          - {name: docker,  mountPath: /var/run/docker.sock}
+    volumes:
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
 
 services:
   - name: registry
@@ -100,9 +117,10 @@ services:
             port: 80
           initialDelaySeconds: 30
         volumeMounts:
-          - {name: log, mountPath: /var/log}
           - {name: cert, mountPath: /etc/nginx/ssl/server.crt}
           - {name: key,  mountPath: /etc/nginx/ssl/server.key}
+        env:
+          - {name: PAGESPEED, value: "on"}
     volumes:
       - {name: cert, hostPath: {path: /etc/letsencrypt/live/rebelsoft.com/fullchain.pem}}
       - {name: key,  hostPath: {path: /etc/letsencrypt/live/rebelsoft.com/privkey.pem}}
@@ -125,8 +143,8 @@ services:
         image: tristar:5000/letsencrypt:latest
         imagePullPolicy: Always
         env:
-          - {name: DOMAINS, value: "rebelsoft.com,www.rebelsoft.com,registry.rebelsoft.com"}
-          - {name: EMAIL, value: "mingfang@mac.com"}
+          - {name: DOMAINS, value: "{{ letsencrypt_domains }}"}
+          - {name: EMAIL, value: "{{ letsencrypt_email }}"}
         volumeMounts:
           - {name: letsencrypt, mountPath: /etc/letsencrypt}
     volumes:
@@ -145,6 +163,9 @@ services:
           - server: kubernetes.*
             locations:
               - /kubernetes-ui
+          - server: default
+            locations:
+              - /kubernetes-ui
       depends: [kubernetes]
     strategy: RollingUpdate
     containers:
@@ -152,7 +173,8 @@ services:
         image: tristar:5000/kubernetes-ui:latest
         imagePullPolicy: Always
         env:
-          - {name: NODE_CONFIG, value: '{"kubectl": "http://minux:3000", "kmaster": "http://minux:8080"}'}
+          - {name: KUBECTL, value: "http://{{ ETCD_HOST }}:3000"}
+          - {name: KMASTER, value: "http://{{ ETCD_HOST }}:8080"}
 
   - name: springboot
     ports:
@@ -164,12 +186,18 @@ services:
           - server: springboot.*
             locations:
               - /
-    replicas: 2
+    replicas: 1
     strategy: RollingUpdate
     containers:
       - name: sprintboot
         image: tristar:5000/springboot:latest
         imagePullPolicy: Always
+      - name: zabbix-agent
+        image: tristar:5000/zabbix-agent:latest
+        imagePullPolicy: Always
+        env:
+          - {name: ZABBIX_SERVER, value: zabbix}
+          - {name: HOSTMETADATA, value: springboot}
 
   - name: kafka-manager
     ports:
@@ -221,8 +249,6 @@ services:
       - name: gitlab
         image: gitlab/gitlab-ce:latest
         imagePullPolicy: Always
-        volumeMounts:
-          - {name: log, mountPath: /var/log}
 
   - name: kafka
     ports:
@@ -240,7 +266,6 @@ services:
         image: tristar:5000/kafka:latest
         imagePullPolicy: Always
         env:
-          - {name: ADVERTISED_HOST, value: "kafka"}
           - {name: ZOOKEEPER_HOST,  value: "zookeeper"}
           - {name: JMX_PORT,        value: "9999"}
           - {name: LOG_RETENTION_HOURS, value: "1"}
@@ -254,12 +279,12 @@ services:
     volumes:
       - {name: ssh-keys, secret: {secretName: ssh-key-secret}}
     strategy: RollingUpdate
+    replicas: 0
     containers:
       - name: redis
         image: tristar:5000/redis:latest
         imagePullPolicy: Always
         volumeMounts:
-          - {name: log, mountPath: /var/log}
           - {name: ssh-keys, mountPath: /etc/ssh-keys, readOnly: true}
 
   - name: zookeeper
@@ -478,14 +503,14 @@ services:
       depends: [jenkins-swarm-client]
       group: jenkins
     nodeSelector:
-      host: minux
+      host: tristar
     strategy: RollingUpdate
     containers:
       - name: jenkins
         image: tristar:5000/jenkins:latest
         imagePullPolicy: Always
         env:
-          - {name: KMASTER, value: 192.168.1.160}
+          - {name: KMASTER, value: "{{ ETCD_HOST }}"}
           - {name: TZ, value: EST}
         volumeMounts:
           - {name: jenkins, mountPath: /root/.jenkins}
@@ -514,9 +539,11 @@ services:
           - {name: docker,  mountPath: /var/run/docker.sock}
         env:
           - {name: MASTER, value: "http://jenkins:8080/jenkins/"}
-          - {name: USERNAME, value: mingfang}
-          - {name: PASSWORD, value: ""}
+          - {name: USERNAME, value: "{{ jenkins_username }}"}
+          - {name: PASSWORD, value: "{{ jenkins_password }}"}
           - {name: REGISTRY, value: "tristar:5000"}
+          - {name: http_proxy, value: "http://ivy:3128"}
+          - {name: https_proxy, value: "http://ivy:3128"}
     volumes:
       - name: docker
         hostPath:
@@ -637,6 +664,7 @@ services:
             - server: httpbin.*
               locations:
                 - /
+              port: 80
     strategy: RollingUpdate
     containers:
       - name: httpbin
@@ -645,7 +673,7 @@ services:
 
   - name: graylog
     ports:
-      - port: 9000
+      - port: 80
         name: web-interface
       - port: 514
         name: syslog-tcp
@@ -673,8 +701,8 @@ services:
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
-            path: /login
-            port: 9000
+            path: /
+            port: 80
           initialDelaySeconds: 30
 
   - name: wiremock
@@ -711,6 +739,23 @@ services:
     containers:
       - name: zipkin
         image: tristar:5000/zipkin:latest
+        imagePullPolicy: Always
+
+  - name: squid
+    ports:
+      - port: 8080
+    nodeSelector:
+      zone: green
+    annotations:
+      nginx:
+        - http:
+            - server: squid.*
+              locations:
+                - /
+    strategy: RollingUpdate
+    containers:
+      - name: squid
+        image: tristar:5000/squid:latest
         imagePullPolicy: Always
 
   # - name: gocd

@@ -18,13 +18,13 @@
 
     - name: configmap template
       template: src={{configmap_template}} dest={{dest_path}}/{{item.name}}-configmap.json
-      with_items: configmaps
+      with_items: "{{ configmaps }}"
       when: configmaps is defined
       no_log: True
 
     - name: apply configmaps
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}} --record=true
-      with_items: configmaps
+      with_items: "{{ configmaps }}"
       when: configmaps is defined
       no_log: True
 
@@ -32,13 +32,13 @@
 
     - name: secret template
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
-      with_items: secrets
+      with_items: "{{ secrets }}"
       when: secrets is defined
       no_log: True
 
     - name: apply secrets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}} --record=true
-      with_items: secrets
+      with_items: "{{ secrets }}"
       when: secrets is defined
       no_log: True
 
@@ -46,13 +46,13 @@
 
     - name: daemonset template
       template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
-      with_items: daemonsets
+      with_items: "{{ daemonsets }}"
       when: daemonsets is defined
       no_log: True
 
     - name: apply daemonsets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}} --record=true
-      with_items: daemonsets
+      with_items: "{{ daemonsets }}"
       when: daemonsets is defined
       no_log: True
 
@@ -60,25 +60,25 @@
 
     - name: service template
       template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json
-      with_items: services
+      with_items: "{{ services }}"
       no_log: True
 
     - name: apply services
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}} --record=true
-      with_items: services
+      with_items: "{{ services }}"
       no_log: True
 
     # Replication Controllers
 
     - name: controller template
       template: src={{controller_template}} dest={{dest_path}}/{{item.name}}-controller.json
-      with_items: services
+      with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is not defined
       no_log: True
 
     - name: apply controllers
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-controller.json'}} --record=true
-      with_items: services
+      with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is not defined
       no_log: True
 
@@ -92,13 +92,13 @@
 
     - name: deployment template
       template: src={{deployment_template}} dest={{dest_path}}/{{item.name}}-deployment.json
-      with_items: services
+      with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
       no_log: True
 
     - name: apply deployments
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}} --record=true
-      with_items: services
+      with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
       no_log: False
 
@@ -106,12 +106,12 @@
 
     - name: endpoints template
       template: src={{endpoints_template}} dest={{dest_path}}/{{item.name}}-endpoints.json
-      with_items: services
+      with_items: "{{ services }}"
       when: item.endpoints is defined
       no_log: True
 
     - name: apply endpoints
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-endpoints.json'}} --record=true
-      with_items: services
+      with_items: "{{ services }}"
       when: item.endpoints is defined
       no_log: True

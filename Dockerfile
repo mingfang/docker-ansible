@@ -16,13 +16,14 @@ RUN echo 'export > /etc/envvars' >> /root/.bashrc
 RUN apt-get install -y vim less net-tools inetutils-ping wget curl git telnet nmap socat dnsutils netcat tree htop unzip sudo software-properties-common jq psmisc
 
 #Ansible
-RUN apt-get install -y python-dev python-pip
+RUN apt-get install -y libssl-dev libffi-dev python-dev python-pip
+RUN pip install --upgrade setuptools
 RUN pip install httplib2
 RUN pip install ansible
 
 #Kubectl
 RUN cd /usr/bin && \
-    wget https://storage.googleapis.com/kubernetes-release/release/v1.2.3/bin/linux/amd64/kubectl && \
+    wget https://storage.googleapis.com/kubernetes-release/release/v1.2.4/bin/linux/amd64/kubectl && \
     chmod +x kubectl
 
 # Add runit services

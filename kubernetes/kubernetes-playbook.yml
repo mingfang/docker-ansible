@@ -23,7 +23,7 @@
       no_log: True
 
     - name: apply configmaps
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}}
       with_items: "{{ configmaps }}"
       when: configmaps is defined
       no_log: True
@@ -37,7 +37,7 @@
       no_log: True
 
     - name: apply secrets
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}}
       with_items: "{{ secrets }}"
       when: secrets is defined
       no_log: True
@@ -51,7 +51,7 @@
       no_log: True
 
     - name: apply daemonsets
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}}
       with_items: "{{ daemonsets }}"
       when: daemonsets is defined
       no_log: True
@@ -64,7 +64,7 @@
       no_log: True
 
     - name: apply services
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}}
       with_items: "{{ services }}"
       no_log: True
 
@@ -77,7 +77,7 @@
       no_log: True
 
     - name: apply controllers
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-controller.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-controller.json'}}
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is not defined
       no_log: True
@@ -97,7 +97,7 @@
       no_log: True
 
     - name: apply deployments
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}}
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
       no_log: False
@@ -111,7 +111,7 @@
       no_log: True
 
     - name: apply endpoints
-      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-endpoints.json'}} --record=true
+      command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-endpoints.json'}}
       with_items: "{{ services }}"
       when: item.endpoints is defined
       no_log: True

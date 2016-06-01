@@ -18,42 +18,36 @@
 
     - name: configmap template
       template: src={{configmap_template}} dest={{dest_path}}/{{item.name}}-configmap.json
-      with_items: "{{ configmaps }}"
-      when: configmaps is defined
+      with_items: "{{ configmaps | default([]) }}"
       no_log: True
 
     - name: apply configmaps
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}}
-      with_items: "{{ configmaps }}"
-      when: configmaps is defined
+      with_items: "{{ configmaps | default([]) }}"
       no_log: True
 
     # Secrets
 
     - name: secret template
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
-      with_items: "{{ secrets }}"
-      when: secrets is defined
+      with_items: "{{ secrets | default([])}}"
       no_log: True
 
     - name: apply secrets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}}
-      with_items: "{{ secrets }}"
-      when: secrets is defined
+      with_items: "{{ secrets | default([])}}"
       no_log: True
 
     # DaemonSets
 
     - name: daemonset template
       template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
-      with_items: "{{ daemonsets }}"
-      when: daemonsets is defined
+      with_items: "{{ daemonsets | default([])}}"
       no_log: True
 
     - name: apply daemonsets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}}
-      with_items: "{{ daemonsets }}"
-      when: daemonsets is defined
+      with_items: "{{ daemonsets | default([])}}"
       no_log: True
 
     # Services

@@ -46,6 +46,11 @@
           {% endif %}
           {% endif %}
 
+          {# Remove scm field #}
+          {% if container.scm is defined %}
+            {% set _dummy = container.pop("scm") %}
+          {% endif %}
+
           {{container | to_nice_json}}{% if not loop.last %},{% endif %}
           {% endfor %}
         ]

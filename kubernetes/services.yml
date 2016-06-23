@@ -146,6 +146,7 @@ services:
     containers:
       - name: letsencrypt
         image: tristar:5000/letsencrypt:latest
+        scm: https://github.com/mingfang/docker-letsencrypt.git
         imagePullPolicy: Always
         env:
           - {name: DOMAINS, value: "{{ letsencrypt_domains }}"}
@@ -197,6 +198,7 @@ services:
     containers:
       - name: sprintboot
         image: tristar:5000/springboot:latest
+        scm: https://github.com/mingfang/docker-springboot.git
         imagePullPolicy: Always
       - name: zabbix-agent
         image: tristar:5000/zabbix-agent:latest
@@ -223,6 +225,7 @@ services:
     containers:
       - name: kafka-manager
         image: tristar:5000/kafka-manager:latest
+        scm: https://github.com/mingfang/docker-kafka-manager.git
         imagePullPolicy: Always
         env:
           - {name: ZK_HOSTS, value: "zookeeper:2181"}
@@ -239,6 +242,7 @@ services:
     containers:
       - name: mongodb
         image: tristar:5000/mongodb:latest
+        scm: https://github.com/mingfang/docker-mongodb.git
         imagePullPolicy: Always
 
   - name: gitlab
@@ -274,6 +278,7 @@ services:
     containers:
       - name: kafka
         image: tristar:5000/kafka:latest
+        scm: https://github.com/mingfang/docker-kafka.git
         imagePullPolicy: Always
         env:
           - {name: ZOOKEEPER_HOST,  value: "zookeeper"}
@@ -294,6 +299,7 @@ services:
     containers:
       - name: zookeeper
         image: tristar:5000/zookeeper:latest
+        scm: https://github.com/mingfang/docker-zookeeper.git
         imagePullPolicy: Always
 
   - name: elasticsearch
@@ -313,6 +319,7 @@ services:
     containers:
       - name: elasticsearch
         image: tristar:5000/elasticsearch:latest
+        scm: https://github.com/mingfang/docker-elasticsearch.git
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
@@ -339,6 +346,7 @@ services:
     containers:
       - name: kibana
         image: tristar:5000/kibana:latest
+        scm: https://github.com/mingfang/docker-kibana.git
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
@@ -364,6 +372,7 @@ services:
     containers:
       - name: uptime
         image: tristar:5000/uptime:latest
+        scm: https://github.com/mingfang/docker-uptime.git
         imagePullPolicy: Always
 
   - name: prometheus
@@ -385,6 +394,7 @@ services:
     containers:
       - name: prometheus
         image: tristar:5000/prometheus:latest
+        scm: https://github.com/mingfang/docker-prometheus.git
         imagePullPolicy: Always
 
   - name: keycloak
@@ -404,6 +414,7 @@ services:
     containers:
       - name: keycloak
         image: tristar:5000/keycloak:latest
+        scm: https://github.com/mingfang/docker-keycloak.git
         imagePullPolicy: Always
 
   - name: packetbeat
@@ -423,6 +434,7 @@ services:
     containers:
       - name: packetbeat
         image: tristar:5000/packetbeat:latest
+        scm: https://github.com/mingfang/docker-packetbeat.git
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
@@ -446,6 +458,7 @@ services:
     containers:
       - name: odoo
         image: tristar:5000/odoo:latest
+        scm: https://github.com/mingfang/docker-odoo.git
         imagePullPolicy: Always
 
 #  - name: openproject
@@ -490,6 +503,7 @@ services:
     containers:
       - name: minecraft
         image: tristar:5000/minecraft:latest
+        scm: https://github.com/mingfang/docker-minecraft.git
         imagePullPolicy: Always
 
   - name: jenkins
@@ -515,6 +529,7 @@ services:
     containers:
       - name: jenkins
         image: tristar:5000/jenkins:latest
+        scm: https://github.com/mingfang/docker-jenkins.git
         imagePullPolicy: Always
         env:
           - {name: KMASTER, value: "{{ ETCD_HOST }}"}
@@ -541,6 +556,7 @@ services:
     containers:
       - name: jenkins-swarm-client
         image: tristar:5000/jenkins-swarm-client:latest
+        scm: https://github.com/mingfang/docker-jenkins-swarm-client.git
         imagePullPolicy: Always
         volumeMounts:
           - {name: docker,  mountPath: /var/run/docker.sock}
@@ -577,6 +593,7 @@ services:
     containers:
       - name: zabbix
         image: tristar:5000/zabbix:latest
+        scm: https://github.com/mingfang/docker-zabbix.git
         imagePullPolicy: Always
         env:
           - {name: ZABBIX_DB, value: zabbix-db}
@@ -600,6 +617,7 @@ services:
     containers:
       - name: zabbix-db
         image: tristar:5000/zabbix-db:latest
+        scm: https://github.com/mingfang/docker-zabbix-db.git
         imagePullPolicy: Always
         volumeMounts:
           - {name: data, mountPath: /var/lib/mysql}
@@ -623,6 +641,7 @@ services:
     containers:
       - name: rundeck
         image: tristar:5000/rundeck:latest
+        scm: https://github.com/mingfang/docker-rundeck.git
         imagePullPolicy: Always
       - name: zabbix-agent
         image: tristar:5000/zabbix-agent:latest
@@ -683,6 +702,7 @@ services:
     containers:
       - name: httpbin
         image: tristar:5000/httpbin:latest
+        scm: https://github.com/mingfang/docker-httpbin.git
         imagePullPolicy: Always
 
   - name: graylog
@@ -709,6 +729,7 @@ services:
     containers:
       - name: graylog
         image: tristar:5000/graylog:latest
+        scm: https://github.com/mingfang/docker-graylog.git
         imagePullPolicy: Always
         readinessProbe:
           httpGet:
@@ -732,6 +753,7 @@ services:
     containers:
       - name: wiremock
         image: tristar:5000/wiremock:latest
+        scm: https://github.com/mingfang/docker-wiremock.git
         imagePullPolicy: Always
 
   - name: zipkin
@@ -752,6 +774,7 @@ services:
     containers:
       - name: zipkin
         image: tristar:5000/zipkin:latest
+        scm: https://github.com/mingfang/docker-zipkin.git
         imagePullPolicy: Always
         env:
           - {name: KAFKA_ZOOKEEPER, value: "zookeeper:2181"}
@@ -772,6 +795,7 @@ services:
     containers:
       - name: squid
         image: tristar:5000/squid:latest
+        scm: https://github.com/mingfang/docker-squid.git
         imagePullPolicy: Always
 
   - name: swagger-template
@@ -955,6 +979,7 @@ services:
     containers:
       - name: redis
         image: tristar:5000/redis
+        scm: https://github.com/mingfang/docker-redis.git
         imagePullPolicy: Always
  
   - name: rosco

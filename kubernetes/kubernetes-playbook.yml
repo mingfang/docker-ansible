@@ -21,11 +21,13 @@
       template: src={{configmap_template}} dest={{dest_path}}/{{item.name}}-configmap.json
       with_items: "{{ configmaps | default([]) }}"
       no_log: True
+      tags: [configmap, template]
 
     - name: apply configmaps
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-configmap.json'}}
       with_items: "{{ configmaps | default([]) }}"
       no_log: True
+      tags: [configmap]
 
     # Secrets
 
@@ -33,11 +35,13 @@
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
       with_items: "{{ secrets | default([]) }}"
       no_log: True
+      tags: [secret, template]
 
     - name: apply secrets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}}
       with_items: "{{ secrets | default([]) }}"
       no_log: True
+      tags: [secret]
 
     # DaemonSets
 
@@ -45,11 +49,13 @@
       template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
       with_items: "{{ daemonsets | default([]) }}"
       no_log: True
+      tags: [daemonset, template]
 
     - name: apply daemonsets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}}
       with_items: "{{ daemonsets | default([]) }}"
       no_log: True
+      tags: [daemonset]
 
     # Services
 
@@ -93,12 +99,14 @@
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is not defined
       no_log: True
+      tags: [controller, template]
 
     - name: apply controllers
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-controller.json'}}
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is not defined
       no_log: True
+      tags: [controller]
 
     # - name: delete other replicationControllers
     #   uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}
@@ -113,12 +121,14 @@
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
       no_log: True
+      tags: [deployment, template]
 
     - name: apply deployments
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}}
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
       no_log: True
+      tags: [deployment]
 
     # Endpoints
 
@@ -127,9 +137,11 @@
       with_items: "{{ services }}"
       when: item.endpoints is defined
       no_log: True
+      tags: [endpoint, template]
 
     - name: apply endpoints
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-endpoints.json'}}
       with_items: "{{ services }}"
       when: item.endpoints is defined
       no_log: True
+      tags: [endpoint]

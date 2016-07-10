@@ -130,6 +130,27 @@
       no_log: True
       tags: [deployment]
 
+    - name: get deployments
+      command: kubectl --server="{{kubernetes_master}}" get deployments -o json
+      register: existing_deployments
+      no_log: True
+      changed_when: False
+      tags: [deployment, audit, delete]
+
+    - name: audit deployments
+      debug: msg="deployment {{ item.metadata.name }} was not defined"
+      with_items: "{{ (existing_deployments.stdout|from_json)['items'] }}"
+      when: item.metadata.name not in services|map(attribute='name')
+      no_log: False
+      tags: [deployment, audit, delete]
+
+    - name: delete undefined deployments
+      command: kubectl --server="{{kubernetes_master}}" delete deployment "{{ item.metadata.name }}"
+      with_items: "{{ (existing_deployments.stdout|from_json)['items'] }}"
+      when: services|length > 0 and item.metadata.name not in services|map(attribute='name')
+      no_log: False
+      tags: [deployment, delete]
+
     # Endpoints
 
     - name: endpoints template

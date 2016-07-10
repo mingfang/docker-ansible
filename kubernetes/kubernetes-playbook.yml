@@ -57,11 +57,34 @@
       template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json
       with_items: "{{ services | default([]) }}"
       no_log: True
+      tags: [service, template]
 
     - name: apply services
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}}
       with_items: "{{ services | default([]) }}"
       no_log: True
+      tags: [service]
+
+    - name: get services
+      command: kubectl --server="{{kubernetes_master}}" get services -l "component!=apiserver" -o json
+      register: existing_services
+      no_log: True
+      changed_when: False
+      tags: [service, audit, delete]
+
+    - name: audit services
+      debug: msg="service {{ item.metadata.name }} was not defined"
+      with_items: "{{ (existing_services.stdout|from_json)['items'] }}"
+      when: item.metadata.name not in services|map(attribute='name')
+      no_log: False
+      tags: [service, audit, delete]
+
+    - name: delete undefined services
+      command: kubectl --server="{{kubernetes_master}}" delete service "{{ item.metadata.name }}"
+      with_items: "{{ (existing_services.stdout|from_json)['items'] }}"
+      when: services|length > 0 and item.metadata.name not in services|map(attribute='name')
+      no_log: False
+      tags: [service, delete]
 
     # Replication Controllers
 
@@ -79,7 +102,7 @@
 
     # - name: delete other replicationControllers
     #   uri: url={{kubernetes_master}}/api/v1/namespaces/default/replicationcontrollers/{{item.metadata.name}}
-    #   with_items: existing_c ontrollers.json['items']
+    #   with_items: existing_controllers.json['items']
     #   when: item.spec.selector.name not in services|map(attribute='name')
     #   no_log: True
 

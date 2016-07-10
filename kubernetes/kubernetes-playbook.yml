@@ -10,8 +10,9 @@
     deployment_template: "deployment.j2"
     configmap_template: "configmap.j2"
     dest_path: /docker
-  vars_files:
-    - "services.yml"
+    services: []
+  # vars_files:
+  #   - "services.yml"
   tasks:
 
     # ConfigMap
@@ -30,36 +31,36 @@
 
     - name: secret template
       template: src={{secret_template}} dest={{dest_path}}/{{item.name}}-secret.json
-      with_items: "{{ secrets | default([])}}"
+      with_items: "{{ secrets | default([]) }}"
       no_log: True
 
     - name: apply secrets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-secret.json'}}
-      with_items: "{{ secrets | default([])}}"
+      with_items: "{{ secrets | default([]) }}"
       no_log: True
 
     # DaemonSets
 
     - name: daemonset template
       template: src={{daemonset_template}} dest={{dest_path}}/{{item.name}}-daemonset.json
-      with_items: "{{ daemonsets | default([])}}"
+      with_items: "{{ daemonsets | default([]) }}"
       no_log: True
 
     - name: apply daemonsets
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-daemonset.json'}}
-      with_items: "{{ daemonsets | default([])}}"
+      with_items: "{{ daemonsets | default([]) }}"
       no_log: True
 
     # Services
 
     - name: service template
       template: src={{service_template}} dest={{dest_path}}/{{item.name}}-service.json
-      with_items: "{{ services }}"
+      with_items: "{{ services | default([]) }}"
       no_log: True
 
     - name: apply services
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-service.json'}}
-      with_items: "{{ services }}"
+      with_items: "{{ services | default([]) }}"
       no_log: True
 
     # Replication Controllers
@@ -94,7 +95,7 @@
       command: kubectl --server="{{kubernetes_master}}" apply -f {{dest_path + '/' + item.name + '-deployment.json'}}
       with_items: "{{ services }}"
       when: item.containers is defined and item.strategy is defined
-      no_log: False
+      no_log: True
 
     # Endpoints
 

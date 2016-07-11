@@ -2,7 +2,12 @@
   "kind": "Deployment",
   "apiVersion": "extensions/v1beta1",
   "metadata": {
-    "name": "{{item.name}}"
+    "name": "{{service_name}}"
+    {% if canary %}
+    , "labels": {
+      "canary": "true"
+    }
+    {% endif %}
   },
   "spec": {
     "replicas": {{item.replicas|default(1)}},
@@ -14,12 +19,12 @@
     "template": {
       "metadata": {
         "labels": {
-          "name": "{{item.name}}"
+          "name": "{{service_name}}"
         }
       },
       "spec": {
         {# Global ConfigMap as env variables #}
-        {% set env = [{"name": "SERVICE_NAME", "value": item.name}, {"name": "LABEL", "value": item.name|upper}] %}
+        {% set env = [{"name": "SERVICE_NAME", "value": service_name}, {"name": "LABEL", "value": service_name|upper}] %}
         {% set global = configmaps|default()|selectattr("name", "equalto", "global")|first|default({"data": []}) %}
         {% for key in global.data %}
           {% set _dummy = env.extend([{"name": key|replace("-", "_")|upper, "value": global.data[key]}]) %}
@@ -27,16 +32,16 @@
 
         {# Sidecar Containers #}
         {% if sidecars %}
-          {% set _dummy = item.containers.extend(sidecars) %}
+          {% set _dummy = containers.extend(sidecars) %}
         {% endif %}
         "containers": [
-          {% for container in item.containers %}
+          {% for container in containers %}
           {% if container.env is defined %}
             {% set _dummy = container.update({"env": container.env|union(env)}) %}
           {% else %}
             {% set _dummy = container.update({"env": env}) %}
           {% endif %}
-          
+
           {# Global volume mounts #}
           {% if volumeMounts is defined %}
           {% if container.volumeMounts is defined %}

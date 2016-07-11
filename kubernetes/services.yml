@@ -21,7 +21,7 @@ configmaps:
       node-env: production
       etcd-host: "{{ ETCD_HOST }}"
       zookeeper: zookeeper:2181
-      tz: America/New_York 
+      tz: America/New_York
 
 volumes:
   - {name: log, emptyDir: {}}
@@ -53,7 +53,6 @@ daemonsets:
         image: tristar:5000/zabbix-agent:latest
         ports:
           - {containerPort: 10050}
-        imagePullPolicy: Always
         env:
           - {name: ZABBIX_SERVER, value: zabbix}
           - {name: TZ, value: America/New_York}
@@ -70,6 +69,27 @@ daemonsets:
       - name: docker
         hostPath:
           path: /var/run/docker.sock
+
+  - name: spark-slave
+    containers:
+      - name: spark-slave
+        image: tristar:5000/spark-slave:latest
+        ports:
+          - {containerPort: 8081}
+        env:
+          - name: SPARK_MASTER_URL
+            value: "spark://spark-master:7077"
+
+  # - name: flink-slave
+  #   containers:
+  #     - name: flink-slave
+  #       image: tristar:5000/flink-slave:latest
+  #       ports:
+  #         - {containerPort: 6121}
+  #         - {containerPort: 6122}
+  #       env:
+  #         - name: FLINK_MASTER
+  #           value: "flink-master"
 
 services:
   - name: registry
@@ -120,50 +140,17 @@ services:
           httpGet:
             path: /lb-status
             port: 80
-          initialDelaySeconds: 30
-        volumeMounts:
-          - {name: cert, mountPath: /etc/nginx/ssl/server.crt}
-          - {name: key,  mountPath: /etc/nginx/ssl/server.key}
+          initialDelaySeconds: 10
         env:
           - {name: PAGESPEED, value: "on"}
-    volumes:
-      - {name: cert, hostPath: {path: /etc/letsencrypt/live/rebelsoft.com/fullchain.pem}}
-      - {name: key,  hostPath: {path: /etc/letsencrypt/live/rebelsoft.com/privkey.pem}}
-
-  - name: letsencrypt
-    ports:
-      - port: 80
-    nodeSelector:
-      host: tristar
-    annotations:
-      nginx:
-        - http:
-          - server: default
-            locations:
-              - /.well-known
-      icon: https://avatars2.githubusercontent.com/u/9289019?v=3&s=200
-    strategy: RollingUpdate
-    containers:
-      - name: letsencrypt
-        image: tristar:5000/letsencrypt:latest
-        scm: https://github.com/mingfang/docker-letsencrypt.git
-        imagePullPolicy: Always
-        env:
-          - {name: DOMAINS, value: "{{ letsencrypt_domains }}"}
-          - {name: EMAIL, value: "{{ letsencrypt_email }}"}
-        volumeMounts:
-          - {name: letsencrypt, mountPath: /etc/letsencrypt}
-    volumes:
-      - name: letsencrypt
-        hostPath:
-          path: /etc/letsencrypt
+          - {name: LETSENCRYPT_DOMAINS, value: "www.rebelsoft.com|rebelsoft.com"}
 
   - name: kubernetes-ui
     ports:
       - port: 8000
     nodeSelector:
       zone: green
-    replicas: 0
+    replicas: 1
     annotations:
       nginx:
         - http:
@@ -237,7 +224,7 @@ services:
       zone: green
     replicas: 0
     annotations:
-      icon: "https://avatars3.githubusercontent.com/u/45120?v=3&s=200"
+      icon: https://avatars3.githubusercontent.com/u/45120?v=3&s=200
     strategy: RollingUpdate
     containers:
       - name: mongodb
@@ -291,7 +278,7 @@ services:
       - port: 2181
     nodeSelector:
       zone: green
-    replicas: 0
+    replicas: 1
     annotations:
       icon: https://zookeeper.apache.org/images/zookeeper_small.gif
       group: rtail
@@ -387,7 +374,7 @@ services:
             - server: prometheus.*
               locations:
                 - /
-      icon: "https://avatars3.githubusercontent.com/u/3380462?v=3&s=200"
+      icon: https://avatars3.githubusercontent.com/u/3380462?v=3&s=200
       depends: [pushgateway]
       group: prometheus
     strategy: RollingUpdate
@@ -506,6 +493,22 @@ services:
         scm: https://github.com/mingfang/docker-minecraft.git
         imagePullPolicy: Always
 
+  - name: jenkins-test
+    ports:
+      - {port: 8080, name: http}
+    annotations:
+      nginx:
+        - http:
+          - server: jenkins-test.*
+            locations:
+              - /jenkins
+    strategy: RollingUpdate
+    replicas: 1
+    containers:
+      - name: jenkins
+        image: tristar:5000/jenkins:latest
+        scm: https://github.com/mingfang/docker-jenkins.git
+
   - name: jenkins
     ports:
       - {port: 8080, name: http}
@@ -522,17 +525,17 @@ services:
       icon: https://jenkins-ci.org/images/logo_head.png
       depends: [jenkins-swarm-client]
       group: jenkins
-    nodeSelector:
-      host: tristar
     strategy: RollingUpdate
     replicas: 1
     containers:
       - name: jenkins
         image: tristar:5000/jenkins:latest
-        scm: https://github.com/mingfang/docker-jenkins.git
         imagePullPolicy: Always
         env:
           - {name: KMASTER, value: "{{ ETCD_HOST }}"}
+          - {name: http_proxy, value: "{{ HTTP_PROXY }}"}
+          - {name: https_proxy, value: "{{ HTTP_PROXY }}"}
+          - {name: no_proxy, value: "{{ ETCD_HOST }}"}
         volumeMounts:
           - {name: docker,  mountPath: /var/run/docker.sock}
           - {name: jenkins-ssh-key, mountPath: /etc/jenkins-ssh-key, readOnly: true}
@@ -818,206 +821,215 @@ services:
 
 #spinnaker
 
-  - name: clouddriver
-    ports:
-      - port: 7002
-    strategy: RollingUpdate
-    containers:
-      - name: clouddriver
-        image: quay.io/spinnaker/clouddriver
-        imagePullPolicy: Always
-        command: ["sh", "-c", "/opt/clouddriver/bin/clouddriver 2>&1 > /var/log/clouddriver.log"]
-        env:
-          - {name: SERVICES_FRONT50_BASEURL, value: "http://front50:8080"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
-  - name: deck
-    ports:
-      - port: 9000
-    annotations:
-      nginx:
-        - http:
-            - server: deck.*
-              locations:
-                - /
-    strategy: RollingUpdate
-    containers:
-      - name: deck
-        image: quay.io/spinnaker/deck
-        imagePullPolicy: Always
-        command: ["sh", "-c", "cd /deck && npm start 2>&1 > /var/log/deck.log"]
-        env:
-          - {name: API_HOST, value: "http://gate.192.168.1.177.xip.io"}
-          - {name: DECK_HOST, value: "0.0.0.0"}
-          - {name: DECK_PORT, value: "9000"}
-          - {name: PROTOCOL, value: "http"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+  # - name: clouddriver
+  #   ports:
+  #     - port: 7002
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: clouddriver
+  #       image: quay.io/spinnaker/clouddriver
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "/opt/clouddriver/bin/clouddriver 2>&1 > /var/log/clouddriver.log"]
+  #       env:
+  #         - {name: SERVICES_FRONT50_BASEURL, value: "http://front50:8080"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+  # - name: deck
+  #   ports:
+  #     - port: 9000
+  #   annotations:
+  #     nginx:
+  #       - http:
+  #           - server: deck.*
+  #             locations:
+  #               - /
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: deck
+  #       image: quay.io/spinnaker/deck
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "cd /deck && npm start 2>&1 > /var/log/deck.log"]
+  #       env:
+  #         - {name: API_HOST, value: "http://gate.192.168.1.177.xip.io"}
+  #         - {name: DECK_HOST, value: "0.0.0.0"}
+  #         - {name: DECK_PORT, value: "9000"}
+  #         - {name: PROTOCOL, value: "http"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
 
-  - name: echo
-    ports: 
-      - port: 8089
-    strategy: RollingUpdate
-    containers:
-      - name: echo
-        image: quay.io/spinnaker/echo
-        imagePullPolicy: Always
-        command: ["sh", "-c", "/opt/echo/bin/echo 2>&1 > /var/log/echo.log"]
-        env:
-          - {name: FRONT50_BASEURL, value: "http://front50:8080"}
-          - {name: ORCA_BASEURL, value: "http://orca:8083"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-          - {name: CASSANDRA_PORT, value: "9160"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
- 
-  - name: front50
-    ports: 
-      - port: 8080
-    annotations:
-      nginx:
-        - http:
-            - server: front50.*
-              locations:
-                - /
-    strategy: RollingUpdate
-    containers:
-      - name: front50
-        image: quay.io/spinnaker/front50
-        imagePullPolicy: Always
-        command: ["sh", "-c", "/opt/front50/bin/front50 2>&1 > /var/log/front50.log"]
-        env:
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-          - {name: CASSANDRA_PORT, value: "9160"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
- 
-  - name: gate
-    ports: 
-      - port: 8084
-    annotations:
-      nginx:
-        - http:
-            - server: gate.*
-              locations:
-                - /
-    strategy: RollingUpdate
-    containers:
-      - name: gate
-        image: quay.io/spinnaker/gate
-        imagePullPolicy: Always
-        command: ["sh", "-c", "/opt/gate/bin/gate 2>&1 > /var/log/gate.log"]
-        env:
-          - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
-          - {name: SERVICES_ECHO_HOST, value: "echo"}
-          - {name: SERVICES_FRONT50_HOST, value: "front50"}
-          - {name: SERVICES_IGOR_HOST, value: "igor"}
-          - {name: SERVICES_ORCA_HOST, value: "orca"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+  # - name: echo
+  #   ports:
+  #     - port: 8089
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: echo
+  #       image: quay.io/spinnaker/echo
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "/opt/echo/bin/echo 2>&1 > /var/log/echo.log"]
+  #       env:
+  #         - {name: FRONT50_BASEURL, value: "http://front50:8080"}
+  #         - {name: ORCA_BASEURL, value: "http://orca:8083"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #         - {name: CASSANDRA_PORT, value: "9160"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
 
-  - name: igor
-    ports: 
-      - port: 8088
-    strategy: RollingUpdate
-    containers:
-      - name: igor
-        image: quay.io/spinnaker/igor
-        imagePullPolicy: Always
-        command: ["sh", "-c", "/opt/igor/bin/igor 2>&1 > /var/log/igor.log"]
-        env:
-          - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
-          - {name: SERVICES_ECHO_HOST, value: "echo"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+  # - name: front50
+  #   ports:
+  #     - port: 8080
+  #   annotations:
+  #     nginx:
+  #       - http:
+  #           - server: front50.*
+  #             locations:
+  #               - /
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: front50
+  #       image: quay.io/spinnaker/front50
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "/opt/front50/bin/front50 2>&1 > /var/log/front50.log"]
+  #       env:
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #         - {name: CASSANDRA_PORT, value: "9160"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
 
-  - name: orca
-    ports: 
-      - port: 8083
-    annotations:
-      nginx:
-        - http:
-            - server: orca.*
-              locations:
-                - /
-    strategy: RollingUpdate
-    containers:
-      - name: orca
-        image: quay.io/spinnaker/orca
-        imagePullPolicy: Always
-        env:
-          - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
-          - {name: SERVICES_ECHO_HOST, value: "echo"}
-          - {name: SERVICES_FRONT50_HOST, value: "front50"}
-          - {name: SERVICES_IGOR_HOST, value: "igor"}
-          - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
-        volumeMounts:
-          - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
-    volumes:
-      - {name: spinnaker-config, configMap: {name: spinnaker-config}}
- 
-  - name: redis
-    ports: 
-      - port: 6379
-    strategy: RollingUpdate
-    containers:
-      - name: redis
-        image: tristar:5000/redis
-        scm: https://github.com/mingfang/docker-redis.git
-        imagePullPolicy: Always
- 
-  - name: rosco
-    ports: 
-      - port: 8087
-    strategy: RollingUpdate
-    containers:
-      - name: rosco
-        image: quay.io/spinnaker/rosco
-        imagePullPolicy: Always
-        env:
-          - {name: API_HOST, value: "http://gate:8084"}
+  # - name: gate
+  #   ports:
+  #     - port: 8084
+  #   annotations:
+  #     nginx:
+  #       - http:
+  #           - server: gate.*
+  #             locations:
+  #               - /
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: gate
+  #       image: quay.io/spinnaker/gate
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "/opt/gate/bin/gate 2>&1 > /var/log/gate.log"]
+  #       env:
+  #         - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
+  #         - {name: SERVICES_ECHO_HOST, value: "echo"}
+  #         - {name: SERVICES_FRONT50_HOST, value: "front50"}
+  #         - {name: SERVICES_IGOR_HOST, value: "igor"}
+  #         - {name: SERVICES_ORCA_HOST, value: "orca"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
 
-  - name: rush
-    ports: 
-      - port: 8085
-    strategy: RollingUpdate
-    containers:
-      - name: rush
-        image: quay.io/spinnaker/rush
-        imagePullPolicy: Always
-        env:
-          - {name: API_HOST, value: "http://gate:8084"}
-          - {name: CASSANDRA_PORT, value: "9160"}
- 
+  # - name: igor
+  #   ports:
+  #     - port: 8088
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: igor
+  #       image: quay.io/spinnaker/igor
+  #       imagePullPolicy: Always
+  #       command: ["sh", "-c", "/opt/igor/bin/igor 2>&1 > /var/log/igor.log"]
+  #       env:
+  #         - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
+  #         - {name: SERVICES_ECHO_HOST, value: "echo"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+
+  # - name: orca
+  #   ports:
+  #     - port: 8083
+  #   annotations:
+  #     nginx:
+  #       - http:
+  #           - server: orca.*
+  #             locations:
+  #               - /
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: orca
+  #       image: quay.io/spinnaker/orca
+  #       imagePullPolicy: Always
+  #       env:
+  #         - {name: SERVICES_CLOUDDRIVER_HOST, value: "clouddriver"}
+  #         - {name: SERVICES_ECHO_HOST, value: "echo"}
+  #         - {name: SERVICES_FRONT50_HOST, value: "front50"}
+  #         - {name: SERVICES_IGOR_HOST, value: "igor"}
+  #         - {name: SPRING_CONFIG_LOCATION, value: "/opt/spinnaker/config/"}
+  #       volumeMounts:
+  #         - {name: spinnaker-config, mountPath: "/opt/spinnaker/config"}
+  #   volumes:
+  #     - {name: spinnaker-config, configMap: {name: spinnaker-config}}
+
+  # - name: redis
+  #   ports:
+  #     - port: 6379
+  #   annotations:
+  #     icon: http://redis.io/images/redis-white.png
+  #   strategy: RollingUpdate
+  #   containers:
+  #     - name: redis
+  #       image: tristar:5000/redis
+  #       scm: https://github.com/mingfang/docker-redis.git
+  #       imagePullPolicy: Always
+
+  # - name: rosco
+  #   ports:
+  #     - port: 8087
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: rosco
+  #       image: quay.io/spinnaker/rosco
+  #       imagePullPolicy: Always
+  #       env:
+  #         - {name: API_HOST, value: "http://gate:8084"}
+
+  # - name: rush
+  #   ports:
+  #     - port: 8085
+  #   strategy: RollingUpdate
+  #   replicas: 0
+  #   containers:
+  #     - name: rush
+  #       image: quay.io/spinnaker/rush
+  #       imagePullPolicy: Always
+  #       env:
+  #         - {name: API_HOST, value: "http://gate:8084"}
+  #         - {name: CASSANDRA_PORT, value: "9160"}
+
   - name: cassandra
     ports:
       - {port: 9042, name: cql}
-      - {port: 9160, name: thirft} 
+      - {port: 9160, name: thirft}
+    annotations:
+      icon: https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Cassandra_logo.svg/1280px-Cassandra_logo.svg.png
     strategy: RollingUpdate
+    replicas: 1
     containers:
       - name: cassandra
         image: tristar:5000/spinnaker-cassandra
-        ports:
-          - containerPort: 9042
-            name: cql
-          - containerPort: 9160
-            name: thrift 
         lifecycle:
           postStart:
             exec:
@@ -1086,3 +1098,84 @@ services:
   #       hostPath:
   #         path: /var/lib/ceph
 
+  - name: spark-master
+    ports:
+      - {port: 7077, name: master}
+      - {port: 6066, name: rest}
+      - {port: 8080, name: ui}
+    annotations:
+      nginx:
+        - http:
+          - server: spark-master.*
+            port: 7077
+            locations:
+              - /
+          - server: spark-rest.*
+            port: 6066
+            locations:
+              - /
+          - server: spark-ui.*
+            port: 8080
+            paths:
+              - path: /
+                directives:
+                  - sub_filter_types text/html;
+                  - sub_filter 'href=\"http://' 'href=\"/proxy:';
+                  - sub_filter_once off;
+              - path: ~ /proxy:(?<targetHost>[^\/?#]*)(?<targetPath>.*)
+                directives:
+                  - proxy_pass http://$targetHost$targetPath$is_args$args;
+                  - proxy_redirect ~http:\/\/.*\/(.+)$ http://$host$uri/$1;
+                  - sub_filter_types text/html;
+                  - sub_filter 'href=\"/' 'href=\"/proxy:$targetHost/';
+                  - sub_filter 'href=\"log' 'href=\"/proxy:$targetHost/log';
+                  - sub_filter 'href=\"http://' 'href=\"/proxy:';
+                  - sub_filter 'src=\"/' 'src=\"/proxy:$targetHost/';
+                  - sub_filter 'action=\"/' 'action=\"/proxy:$targetHost/';
+                  - sub_filter_once off;
+                no_proxy: true
+      icon: http://spark.apache.org/docs/latest/img/spark-logo-hd.png
+    strategy: RollingUpdate
+    replicas: 1
+    containers:
+      - name: spark-master
+        image: tristar:5000/spark-master
+        env:
+          - {name: SPARK_MASTER_PORT, value: "7077"}
+
+  - name: zeppelin
+    ports:
+      - port: 8080
+    annotations:
+      nginx:
+        - http:
+          - server: zeppelin.*
+            port: 8080
+            paths:
+              - path: /
+      icon: http://hortonworks.com/wp-content/uploads/2016/03/ZeppelinLogo.png
+    strategy: RollingUpdate
+    replicas: 1
+    containers:
+      - name: zeppelin
+        image: tristar:5000/zeppelin
+        env:
+          - {name: ZEPPELIN_PORT, value: "8080"}
+
+  # - name: flink-master
+  #   ports:
+  #     - {port: 6123, name: rpc}
+  #     - {port: 8081, name: ui}
+  #   annotations:
+  #     nginx:
+  #       - http:
+  #         - server: flink.*
+  #           port: 8081
+  #           paths:
+  #             - path: /
+  #     icon: https://ci.apache.org/projects/flink/flink-docs-release-1.0/page/img/navbar-brand-logo.jpg
+  #   strategy: RollingUpdate
+  #   replicas: 1
+  #   containers:
+  #     - name: flink-master
+  #       image: tristar:5000/flink-master

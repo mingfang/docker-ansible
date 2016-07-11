@@ -13,6 +13,7 @@
     services: []
     daemonsets: []
     deployments: []
+    delete: false
   # vars_files:
   #   - "services.yml"
   tasks:
@@ -76,7 +77,7 @@
     - name: delete undefined daemonsets
       command: kubectl --server="{{kubernetes_master}}" delete daemonset "{{ item.metadata.name }}"
       with_items: "{{ (existing_daemonsets.stdout|from_json)['items'] }}"
-      when: daemonsets|length > 0 and item.metadata.name not in daemonsets|map(attribute='name')
+      when: delete and daemonsets|length > 0 and item.metadata.name not in daemonsets|map(attribute='name')
       no_log: False
       tags: [daemonset, delete]
 
@@ -111,7 +112,7 @@
     - name: delete undefined services
       command: kubectl --server="{{kubernetes_master}}" delete service "{{ item.metadata.name }}"
       with_items: "{{ (existing_services.stdout|from_json)['items'] }}"
-      when: services|length > 0 and item.metadata.name not in services|map(attribute='name')
+      when: delete and services|length > 0 and item.metadata.name not in services|map(attribute='name')
       no_log: False
       tags: [service, delete]
 
@@ -170,7 +171,7 @@
     - name: delete undefined deployments
       command: kubectl --server="{{kubernetes_master}}" delete deployment "{{ item.metadata.name }}"
       with_items: "{{ (existing_deployments.stdout|from_json)['items'] }}"
-      when: services|length > 0 and item.metadata.name not in services|map(attribute='name')
+      when: delete and services|length > 0 and item.metadata.name not in services|map(attribute='name')
       no_log: False
       tags: [deployment, delete]
 

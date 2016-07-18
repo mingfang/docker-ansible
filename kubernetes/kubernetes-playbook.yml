@@ -1,6 +1,7 @@
 - name: Kubernetes Playbook
   hosts: 127.0.0.1
   connection: local
+  gather_facts: False
   vars:
     service_template: "service.j2"
     service_canary_template: "service-canary.j2"
@@ -10,7 +11,7 @@
     daemonset_template: "daemonset.j2"
     deployment_template: "deployment.j2"
     configmap_template: "configmap.j2"
-    dest_path: /docker
+    dest_path: /tmp
     services: []
     daemonsets: []
     deployments: []

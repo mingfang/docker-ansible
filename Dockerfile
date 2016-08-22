@@ -19,6 +19,7 @@ RUN apt-get install -y vim less net-tools inetutils-ping wget curl git telnet nm
 RUN apt-get install -y libssl-dev libffi-dev python-dev python-pip
 RUN pip install --upgrade setuptools
 RUN pip install httplib2
+RUN pip install boto
 RUN pip install ansible
 
 #Kubectl

@@ -20,6 +20,7 @@ RUN apt-get install -y libssl-dev libffi-dev python-dev python-pip
 RUN pip install --upgrade setuptools
 RUN pip install httplib2
 RUN pip install boto
+RUN pip install cryptography
 RUN pip install ansible
 
 #Kubectl

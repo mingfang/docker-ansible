@@ -1,13 +1,6 @@
 ---
 - hosts: host
   tasks:
-    - name: Upgrade Kernel
-      apt: name=linux-generic-lts-wily state=latest update_cache=true cache_valid_time=3600
-
-    - name: Check if a reboot is required
-      register: file
-      stat: path=/var/run/reboot-required get_md5=no
-
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
       with_items:
@@ -20,6 +13,8 @@
         - htop
         - telnet
         - ncdu
+        - squid
+        - ntp
 
     - name: Get list of vms
       virt: command=list_vms
@@ -31,69 +26,75 @@
     - name: Create KVM directory
       file: path=/kvm state=directory
 
-    - name: Create VMs 
+    - name: Create VMs
       command: vmbuilder kvm ubuntu
         --hostname={{item}}
         -d /kvm/{{item}}
-        --suite=trusty 
-        --flavour=virtual 
-        -o 
-        --tmpfs=- 
-        --ssh-key=/root/.ssh/authorized_keys 
-        --proxy=http://{{inventory_hostname}}:3142 
-        --libvirt=qemu:///system 
+        --suite=trusty
+        --flavour=virtual
+        -o
+        --tmpfs=-
+        --ssh-key=/root/.ssh/authorized_keys
+        --proxy=http://{{inventory_hostname}}:3142
+        --libvirt=qemu:///system
         --mem=4096
-        --rootsize '60480' 
-        --cpus=2 
-        --bridge=br0 
-        --addpkg=openssh-server 
-        --addpkg=acpid 
-        --addpkg=linux-image-generic 
+        --rootsize '60480'
+        --cpus=2
+        --bridge=br0
+        --addpkg=openssh-server
+        --addpkg=acpid
+        --addpkg=linux-image-generic
         --addpkg=apt-transport-https
         --debug
-      with_items: groups.vms
+      with_items: "{{ groups.vms }}"
       when: item not in virt_vms.list_vms
 
     - name: Destroy VMs not on list
       virt: name={{item}} state=destroyed
-      with_items: virt_vms.list_vms
+      with_items: "{{ virt_vms.list_vms }}"
       when: item not in groups.vms
 
     - name: Undefine VMs not on list
       virt: name={{item}} command=undefine
-      with_items: virt_vms.list_vms
+      with_items: "{{ virt_vms.list_vms }}"
       when: item not in groups.vms
 
     - name: Run VMs
       virt: name={{item}} state=running
-      with_items: groups.vms
+      with_items: "{{ groups.vms }}"
 
     - name: Wait for VMs to run
-      local_action: wait_for 
+      local_action: wait_for
                     host={{item}}
                     port=22
                     delay=1
                     timeout=60
-      with_items: groups.vms
+      with_items: "{{ groups.vms }}"
       ignore_errors: yes
 
-- hosts: vms:nucs
+- hosts: all
   tasks:
-    - name: Bypass apt-cacher-ng for HTTPS
-      lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
+     - group_by: key={{ansible_distribution}}-{{ansible_distribution_version}}
 
-    - name: Add Docker Repository Key
-      apt_key: keyserver='hkp://p80.pool.sks-keyservers.net:80' id='58118E89F3A912897C070ADBF76221572C52609D'
- 
-    - name: Add Docker Repository
-      apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-trusty main' state=present
-
+- hosts: Ubuntu-14.04
+  tasks:
     - name: Upgrade Kernel
       apt: name=linux-generic-lts-wily state=latest update_cache=true cache_valid_time=3600
 
     - name: Check if a reboot is required
       register: file
       stat: path=/var/run/reboot-required get_md5=no
+
+- hosts: knodes
+  tasks:
+    - name: Bypass apt-cacher-ng for HTTPS
+      lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
+
+    - name: Add Docker Repository Key
+      apt_key: keyserver='hkp://p80.pool.sks-keyservers.net:80' id='58118E89F3A912897C070ADBF76221572C52609D'
+
+    - name: Add Docker Repository
+      apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-{{ ansible_lsb.codename|lower }} main' state=present
 
     - name: Install packages
       apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
@@ -110,7 +111,17 @@
         - apparmor
         - bridge-utils
         - openvswitch-switch
-    
+        - ntp
+        - git
+
+    - name: Remove Docker init.d
+      file: path=/etc/init.d/docker state=absent
+
+    - name: Configure Docker to user OVS bridge
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry=0.0.0.0/0  --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
+      when: ansible_distribution_version == '14.04'
+      notify: [Restart Docker]
+
     - name: checkout docker-kubernetes-node
       git: repo=https://github.com/mingfang/docker-kubernetes-node.git dest=/root/docker-kubernetes-node
 
@@ -119,42 +130,32 @@
       args:
         chdir: /root/docker-kubernetes-node
       when: "'kbr0' not in ansible_interfaces"
-
-    - name: Configure Docker to user OVS bridge
-      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry=0.0.0.0/0  --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
-      register: docker_opts
-      
-    - name: Restart Docker when DOCKER_OPTS changed
-      service: name=docker state=restarted
-      when: docker_opts.changed
-
-    - name: Remote Docker init.d
-      file: path=/etc/init.d/docker state=absent
+      notify: [Restart Docker]
 
     - name: Ensure Docker is Running
       service: name=docker state=started
 
-    - name: Clean Exited containers
-      shell: docker rm `docker ps -aq` || true
-      changed_when: False
-      
-    - name: Clean images
-      shell: docker rmi -f `docker images -q` || true
-      changed_when: False
+#    - name: Clean Exited containers
+#      shell: docker ps -aq --no-trunc --filter status=exited --filter status=dead | xargs --no-run-if-empty docker rm -v
+#      changed_when: False
+
+#    - name: Clean images
+#      shell: docker images -q --filter dangling=true | xargs --no-run-if-empty -I % sh -c '{ echo Deleting %; docker rmi %; sleep 0; }'
+#      changed_when: False
 
     - name: pull kubernetes-node image
       shell: docker pull {{docker_registry}}/kubernetes-node:latest
       register: docker_pull
       changed_when: docker_pull.stdout.find("Downloaded newer") > 0
-      ignore_errors: True 
+      ignore_errors: True
 
     - name: Check Node Update
       debug: msg="Kubernetes Node Update Available"
       when: docker_pull.stdout.find("Downloaded newer") > 0
 
     - name: Check if node is running
-      shell: bash -c "docker ps -q | xargs docker inspect --format {% raw %} \"{{json .Config.Image}}\" {% endraw %} | grep kubernetes-node"
-      ignore_errors: True 
+      shell: bash -c "docker ps -q | xargs --no-run-if-empty docker inspect --format {% raw %} \"{{json .Config.Image}}\" {% endraw %} | grep kubernetes-node"
+      ignore_errors: True
       register: docker_ps
       changed_when: docker_ps.stdout.find("kubernetes-node") == -1
 
@@ -175,17 +176,22 @@
                      -p 10250:10250 \
                      --privileged=true \
                      -e KUBERNETES_MASTER="{{kubernetes_master}}" \
-                     -e ETCD_HOST={{etcd_host}} \
+                     -e ETCD_HOST={{ETCD_HOST}} \
                      -v `pwd`/manifests:/etc/kubernetes/manifests \
                      -v /:/rootfs:ro \
                      -v /sys:/sys:rw \
                      -v /dev:/dev \
                      -v /var/lib/docker/:/var/lib/docker:rw \
-                     -v /var/lib/kubelet/:/var/lib/kubelet:rw \
+                     -v /var/lib/kubelet/:/var/lib/kubelet:rw,shared \
                      -v /var/run:/var/run:rw \
                      -v /var/run/openvswitch/db.sock:/var/run/openvswitch/db.sock \
                      -d {{docker_registry}}/kubernetes-node:latest
       args:
         chdir: /root/docker-kubernetes-node
       when: docker_ps.stdout.find("kubernetes-node") == -1
-     
+
+  handlers:
+    - name: Restart Docker
+      service: name=docker state=restarted
+
+

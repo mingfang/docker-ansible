@@ -1,0 +1,62 @@
+---
+- hosts: pi
+  tasks:
+    - name: overclock microSD
+      lineinfile: create=yes dest=/boot/config.txt line='dtoverlay=sdhost,overclock_50=100' regexp='^dtoverlay'
+      register: overclock_microSD
+
+    - name: Bypass apt-cacher-ng for HTTPS
+      lineinfile: create=yes dest=/etc/apt/apt.conf line='Acquire::https::Proxy "false";'
+
+    - name: Install packages
+      apt: name={{item}} state=latest update_cache=true cache_valid_time=3600
+      with_items:
+        - docker-machine
+        - docker-hypriot
+        - ncdu
+        - dnsutils
+        - update-notifier
+        - telnet
+        - htop
+        - sysstat
+        - curl
+        - jq
+        - apparmor
+        - bridge-utils
+        - openvswitch-switch
+
+    - name: autoremove
+      command: apt-get -y autoremove
+      register: check_autoremove
+      changed_when: "'packages will be REMOVED' in check_autoremove.stdout"
+    
+    - name: checkout docker-kubernetes-node
+      git: repo=https://github.com/mingfang/docker-kubernetes-node.git dest=/root/docker-kubernetes-node
+
+    - name: Setup OVS
+      shell: ./ovs-setup.sh
+      args:
+        chdir: /root/docker-kubernetes-node
+      when: "'kbr0' not in ansible_interfaces"
+
+    - name: Configure Docker to user OVS bridge
+      lineinfile: create=yes dest=/etc/default/docker line='DOCKER_OPTS="--bridge=kbr0 --mtu=1420 --insecure-registry=0.0.0.0/0  --iptables=true --storage-driver=overlay"' regexp='^DOCKER_OPTS'
+      register: docker_opts
+      
+    - name: Restart Docker when DOCKER_OPTS changed
+      service: name=docker state=restarted
+      when: docker_opts.changed
+
+    - name: Remove Docker init.d
+      file: path=/etc/init.d/docker state=absent
+
+    - name: Ensure Docker is Running
+      service: name=docker state=started
+
+    - name: Clean Exited containers
+      shell: docker rm `docker ps -aq` || true
+      changed_when: False
+      
+    - name: Clean untagged images
+      shell: docker rmi `docker images | grep "^<none>" | awk '{print $3}'` || true
+      changed_when: False

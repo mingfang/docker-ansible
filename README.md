@@ -15,7 +15,7 @@ source docker-ansible/alias
 Optionally add the aliases to your .bashrc:
 
 ```
-cat ./alias >> "${HOME}/.bashrc"
+echo 'source "${HOME}/github.com/mingfang/docker-ansible"' >> "${HOME}/.bashrc"
 ```
 
 ## Running Ansible

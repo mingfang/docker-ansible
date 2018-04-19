@@ -1,9 +1,30 @@
 # docker-ansible
-Runs Ansible Inside Docker
+
+Runs Ansible inside Docker.
+
+## Building this container
 
 ```
-alias ansible='docker run -v `pwd`:/docker -w /docker --rm -i ansible ansible'
-alias ansible-galaxy='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible-galaxy'
-alias ansible-playbook='docker run --net=host -v `pwd`:/docker -w /docker --rm -it ansible ansible-playbook'
-alias ansible-vault='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible-vault'
+mkdir "${HOME}/github.com/mingfang"
+cd "${HOME}/github.com/mingfang"
+git clone git@github.com:mingfang/docker-ansible.git
+sudo docker build docker-ansible -t mingfang/ansible
+source docker-ansible/alias 
+```
+
+Optionally add the aliases to your .bashrc:
+
+```
+cat ./alias >> "${HOME}/.bashrc"
+```
+
+## Running Ansible
+
+Use these commands, which should be aliases to this container:
+
+```
+ansible
+ansible-galaxy
+ansible-playbook
+ansible-vault
 ```

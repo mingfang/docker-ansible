@@ -1,2 +1,4 @@
-alias ansible='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible'
-alias ansible-playbook='docker run -v `pwd`:/docker -w /docker --rm -it ansible ansible-playbook'
+alias ansible='docker run -v .:/docker -w /docker --rm -it mingfang/ansible ansible'
+alias ansible-galaxy='docker run -v .:/docker -w /docker --rm -it mingfang/ansible ansible-galaxy'
+alias ansible-playbook='docker run --net=host -v .:/docker -w /docker --rm -it mingfang/ansible ansible-playbook'
+alias ansible-vault='docker run -v .:/docker -w /docker --rm -it mingfang/ansible ansible-vault'
